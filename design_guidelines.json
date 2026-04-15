@@ -1,0 +1,81 @@
+{
+  "theme": "light",
+  "archetype": "Organic & Earthy",
+  "design_philosophy": "Clean, minimal, and highly accessible healthcare dashboard with low cognitive load. Emphasizes data clarity, trust-building via calm palettes, and frictionless workflows.",
+  "colors": {
+    "background": "#F9FAFB",
+    "foreground": "#0F172A",
+    "card": "#FFFFFF",
+    "card_foreground": "#0F172A",
+    "primary": "#0284C7",
+    "primary_foreground": "#FFFFFF",
+    "secondary": "#F1F5F9",
+    "secondary_foreground": "#0F172A",
+    "muted": "#F8FAFC",
+    "muted_foreground": "#64748B",
+    "border": "#E2E8F0",
+    "destructive": "#EF4444"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Work Sans",
+      "style": "Clean, professional, and readable.",
+      "sizes": {
+        "h1": "text-3xl md:text-4xl tracking-tight font-semibold",
+        "h2": "text-2xl md:text-3xl tracking-tight font-medium",
+        "h3": "text-xl md:text-2xl font-medium",
+        "h4": "text-lg font-medium"
+      }
+    },
+    "body": {
+      "font_family": "IBM Plex Sans",
+      "style": "Crisp and highly legible for data tables and forms.",
+      "sizes": {
+        "base": "text-base leading-relaxed",
+        "small": "text-sm",
+        "xs": "text-xs uppercase tracking-wider"
+      }
+    }
+  },
+  "spacing_and_layout": {
+    "dashboard_grid": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+    "padding": "Generous internal padding for cards (p-6) to ensure breathing room.",
+    "border_radius": "rounded-lg or rounded-xl (max 8px to 12px) for a subtle, friendly, yet professional look.",
+    "alignment": "Left-aligned for all tabular and form data for rapid scanning. Metrics in cards left-aligned with top-right icons."
+  },
+  "components": {
+    "metric_cards": {
+      "style": "Flat background, 1px subtle border, no heavy drop shadow (use shadow-sm max). Background white.",
+      "layout": "Flex column, gap-2, value in text-3xl font-semibold, label in text-sm text-muted-foreground."
+    },
+    "tables": {
+      "style": "Cardless or bordered container. Clean rows with hover:bg-muted/50. Use text-sm for data density."
+    },
+    "forms": {
+      "style": "Use Shadcn Input and Select. Generous spacing (gap-6) between form fields. Focus rings must be primary color.",
+      "file_upload": "Custom drag-and-drop zone. Dashed border (border-2 border-dashed border-border), bg-muted/20, hover:bg-muted/50 transition-colors, centered upload icon."
+    },
+    "buttons": {
+      "style": "Primary buttons: bg-primary text-white hover:bg-primary/90. Fully rounded or rounded-lg."
+    }
+  },
+  "interactions": {
+    "hover": "Subtle background color shifts on table rows and interactive elements. Avoid excessive transforms.",
+    "focus": "Clear focus:ring-2 focus:ring-primary focus:ring-offset-2 on all inputs for accessibility."
+  },
+  "media": {
+    "doctor_profile": "https://images.unsplash.com/photo-1622475439808-de6910b36f1e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwyfHxkb2N0b3IlMjBwcm9maWxlJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc2MjU5OTA1fDA&ixlib=rb-4.1.0&q=85"
+  },
+  "instructions_to_main_agent": [
+    "Implement two main views: 1) Dashboard with 4 metric cards (Referrals, Pending, Conversion %, Non-admit) and a Pending Referrals List. 2) 'Add New Referral' form page.",
+    "Use Lucide-react for icons (e.g., Users, Activity, FileText, UploadCloud).",
+    "Implement Shadcn UI components for Table, Form, Input, Select, and Button.",
+    "Ensure all interactive elements have 'data-testid' attributes (e.g., data-testid='metric-total-referrals', data-testid='add-referral-btn').",
+    "Keep the design extremely clean, prioritizing white space, clear typography (Work Sans for headers, IBM Plex Sans for body), and minimal borders.",
+    "Use a sidebar or top navigation for routing between 'Dashboard' and 'Add Referral'.",
+    "For the file upload in the 'Add Referral' form, implement a UI that looks like a drag-and-drop zone (dashed border, upload icon, clear instructions).",
+    "Avoid using teal or purple; stick to the provided primary blue (#0284C7) and slate grays to maintain the clinical, trustworthy archetype.",
+    "Override default shadcn component colors in tailwind.config.js to match the provided color palette (e.g. primary should be #0284C7).",
+    "Add 'Work Sans' and 'IBM Plex Sans' to index.html or global css imports."
+  ]
+}
