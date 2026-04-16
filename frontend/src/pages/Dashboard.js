@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Users, Clock, TrendingUp, XCircle } from "lucide-react";
+import { Users, Clock, TrendingUp, XCircle, Activity, FileText } from "lucide-react";
 import { toast } from "sonner";
+import ActivityDialog from "../components/ActivityDialog";
+import DocumentsDialog from "../components/DocumentsDialog";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -34,6 +36,10 @@ const Dashboard = () => {
   });
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedReferral, setSelectedReferral] = useState(null);
+  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [documentsDialogOpen, setDocumentsDialogOpen] = useState(false);
+  const [docsReferral, setDocsReferral] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -63,6 +69,17 @@ const Dashboard = () => {
       month: "short",
       day: "numeric",
     });
+  };
+
+  const handleReferralClick = (referral) => {
+    setSelectedReferral(referral);
+    setActivityDialogOpen(true);
+  };
+
+  const handleDocsClick = (e, referral) => {
+    e.stopPropagation();
+    setDocsReferral(referral);
+    setDocumentsDialogOpen(true);
   };
 
   return (
@@ -107,6 +124,7 @@ const Dashboard = () => {
       <div className="bg-card rounded-lg border border-border shadow-sm">
         <div className="p-6 border-b border-border">
           <h2 className="text-xl font-medium text-foreground">Pending Referrals</h2>
+          <p className="text-sm text-muted-foreground mt-1">Click on a referral to view and add activities</p>
         </div>
         <div className="overflow-x-auto">
           {loading ? (
@@ -131,6 +149,9 @@ const Dashboard = () => {
                   <th className="text-left text-xs uppercase tracking-wider font-medium text-muted-foreground px-6 py-3">
                     Status
                   </th>
+                  <th className="text-left text-xs uppercase tracking-wider font-medium text-muted-foreground px-6 py-3">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -138,7 +159,8 @@ const Dashboard = () => {
                   <tr
                     key={referral.id}
                     data-testid={`referral-row-${referral.id}`}
-                    className="hover:bg-muted/50 transition-colors"
+                    className="hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => handleReferralClick(referral)}
                   >
                     <td className="px-6 py-4 text-sm font-medium text-foreground">
                       {referral.patient_name}
@@ -154,6 +176,29 @@ const Dashboard = () => {
                         {referral.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          data-testid={`view-activities-btn-${referral.id}`}
+                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReferralClick(referral);
+                          }}
+                        >
+                          <Activity className="w-4 h-4" />
+                          Activities
+                        </button>
+                        <button
+                          data-testid={`view-documents-btn-${referral.id}`}
+                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          onClick={(e) => handleDocsClick(e, referral)}
+                        >
+                          <FileText className="w-4 h-4" />
+                          Documents
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -161,6 +206,20 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Activity Dialog */}
+      <ActivityDialog
+        open={activityDialogOpen}
+        onOpenChange={setActivityDialogOpen}
+        referral={selectedReferral}
+      />
+
+      {/* Documents Dialog */}
+      <DocumentsDialog
+        open={documentsDialogOpen}
+        onOpenChange={setDocumentsDialogOpen}
+        referral={docsReferral}
+      />
     </div>
   );
 };

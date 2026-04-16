@@ -1,8 +1,7 @@
-from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
@@ -12,21 +11,21 @@ import uuid
 from datetime import datetime, timezone
 import requests
 
+from database import get_connection, close_connection, execute_query, init_tables
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Object Storage Configuration
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY')
-APP_NAME = "hospice-intake"
+# Object Storage Configuration (all config-driven)
+STORAGE_URL = os.environ.get("STORAGE_URL", "https://integrations.emergentagent.com/objstore/api/v1/storage")
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+STORAGE_BASE_PATH = os.environ.get("STORAGE_BASE_PATH", "hospice-intake")
+STORAGE_FOLDER_FORMAT = os.environ.get("STORAGE_FOLDER_FORMAT", "referrals/{referral_id}")
+MAX_FILE_SIZE_MB = int(os.environ.get("MAX_FILE_SIZE_MB", "50"))
+ALLOWED_FILE_TYPES = os.environ.get("ALLOWED_FILE_TYPES", "pdf,doc,docx,png,jpg,jpeg,gif,webp,txt,csv,xls,xlsx").split(",")
 storage_key = None
 
-# Create the main app without a prefix
+# Create the main app
 app = FastAPI()
 
 # Create a router with the /api prefix
@@ -39,9 +38,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Object Storage Functions
+
+# ─── Object Storage Functions ────────────────────────────────────────────────
+
 def init_storage():
-    """Initialize storage and return reusable storage_key"""
     global storage_key
     if storage_key:
         return storage_key
@@ -59,8 +59,8 @@ def init_storage():
         logger.error(f"Storage init failed: {e}")
         raise
 
+
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    """Upload file to object storage"""
     key = init_storage()
     resp = requests.put(
         f"{STORAGE_URL}/objects/{path}",
@@ -71,8 +71,8 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
     resp.raise_for_status()
     return resp.json()
 
+
 def get_object(path: str) -> tuple:
-    """Download file from object storage"""
     key = init_storage()
     resp = requests.get(
         f"{STORAGE_URL}/objects/{path}",
@@ -82,32 +82,26 @@ def get_object(path: str) -> tuple:
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
-# Pydantic Models
+
+def build_storage_path(referral_id: str, filename: str) -> str:
+    """Build storage path using configurable format."""
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else "bin"
+    folder = STORAGE_FOLDER_FORMAT.format(referral_id=referral_id)
+    return f"{STORAGE_BASE_PATH}/{folder}/{uuid.uuid4()}.{ext}"
+
+
+# ─── Pydantic Models ────────────────────────────────────────────────────────
+
 class ReferralCreate(BaseModel):
     patient_name: str
     referral_source: str
 
-class Referral(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+class ReferralOut(BaseModel):
+    id: str
     patient_name: str
     referral_source: str
-    status: str = "pending"
-    file_paths: List[str] = Field(default_factory=list)
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-class FileRecord(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    storage_path: str
-    original_filename: str
-    content_type: str
-    size: int
-    referral_id: Optional[str] = None
-    is_deleted: bool = False
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    status: str
+    created_at: str
 
 class Metrics(BaseModel):
     total_referrals: int
@@ -115,130 +109,315 @@ class Metrics(BaseModel):
     conversion_percentage: float
     total_non_admit: int
 
-# API Routes
+class ActivityCreate(BaseModel):
+    activity_type: str
+    date_time: str
+    notes: str
+
+class ActivityOut(BaseModel):
+    id: str
+    referral_id: str
+    activity_type: str
+    date_time: str
+    notes: str
+    created_at: str
+
+class FileOut(BaseModel):
+    id: str
+    referral_id: Optional[str] = None
+    storage_path: str
+    original_filename: str
+    content_type: Optional[str] = None
+    size: Optional[int] = None
+    notes: str = ""
+    tags: str = ""
+    is_deleted: bool = False
+    created_at: str
+
+class FileUpdate(BaseModel):
+    notes: Optional[str] = None
+    tags: Optional[str] = None
+
+class StorageConfig(BaseModel):
+    storage_base_path: str
+    storage_folder_format: str
+    max_file_size_mb: int
+    allowed_file_types: List[str]
+
+
+# ─── Helper to convert Snowflake rows ────────────────────────────────────────
+
+def row_to_dict(row: dict) -> dict:
+    """Convert Snowflake row (uppercase keys) to lowercase and serialize datetimes."""
+    result = {}
+    for k, v in row.items():
+        key = k.lower()
+        if isinstance(v, datetime):
+            result[key] = v.isoformat()
+        elif isinstance(v, bool):
+            result[key] = v
+        else:
+            result[key] = v
+    return result
+
+
+# ─── API Routes ──────────────────────────────────────────────────────────────
+
 @api_router.get("/")
 async def root():
     return {"message": "Hospice Intake API"}
 
+
+@api_router.get("/config/storage", response_model=StorageConfig)
+async def get_storage_config():
+    """Return current storage configuration (read-only)."""
+    return StorageConfig(
+        storage_base_path=STORAGE_BASE_PATH,
+        storage_folder_format=STORAGE_FOLDER_FORMAT,
+        max_file_size_mb=MAX_FILE_SIZE_MB,
+        allowed_file_types=ALLOWED_FILE_TYPES,
+    )
+
+
 @api_router.get("/metrics", response_model=Metrics)
 async def get_metrics():
-    """Get dashboard metrics"""
     try:
-        total_referrals = await db.referrals.count_documents({})
-        total_pending = await db.referrals.count_documents({"status": "pending"})
-        total_admitted = await db.referrals.count_documents({"status": "admitted"})
-        total_non_admit = await db.referrals.count_documents({"status": "non_admit"})
-        
-        # Calculate conversion percentage
-        conversion_percentage = 0.0
-        if total_referrals > 0:
-            conversion_percentage = round((total_admitted / total_referrals) * 100, 1)
-        
+        total = execute_query("SELECT COUNT(*) AS cnt FROM referrals", fetch=True)
+        pending = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE status = 'pending'", fetch=True)
+        admitted = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE status = 'admitted'", fetch=True)
+        non_admit = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE status = 'non_admit'", fetch=True)
+
+        total_count = total[0]["CNT"] if total else 0
+        admitted_count = admitted[0]["CNT"] if admitted else 0
+        pending_count = pending[0]["CNT"] if pending else 0
+        non_admit_count = non_admit[0]["CNT"] if non_admit else 0
+
+        conversion = round((admitted_count / total_count) * 100, 1) if total_count > 0 else 0.0
+
         return Metrics(
-            total_referrals=total_referrals,
-            total_pending_admission=total_pending,
-            conversion_percentage=conversion_percentage,
-            total_non_admit=total_non_admit
+            total_referrals=total_count,
+            total_pending_admission=pending_count,
+            conversion_percentage=conversion,
+            total_non_admit=non_admit_count,
         )
     except Exception as e:
         logger.error(f"Error fetching metrics: {e}")
         raise HTTPException(status_code=500, detail="Error fetching metrics")
 
-@api_router.get("/referrals", response_model=List[Referral])
+
+@api_router.get("/referrals", response_model=List[ReferralOut])
 async def get_referrals(status: Optional[str] = None):
-    """Get all referrals or filter by status"""
     try:
-        query = {}
         if status:
-            query["status"] = status
-        
-        referrals = await db.referrals.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
-        return referrals
+            rows = execute_query(
+                "SELECT id, patient_name, referral_source, status, created_at FROM referrals WHERE status = %s ORDER BY created_at DESC",
+                (status,), fetch=True
+            )
+        else:
+            rows = execute_query(
+                "SELECT id, patient_name, referral_source, status, created_at FROM referrals ORDER BY created_at DESC",
+                fetch=True
+            )
+        return [row_to_dict(r) for r in (rows or [])]
     except Exception as e:
         logger.error(f"Error fetching referrals: {e}")
         raise HTTPException(status_code=500, detail="Error fetching referrals")
 
-@api_router.post("/referrals", response_model=Referral)
-async def create_referral(referral_input: ReferralCreate):
-    """Create a new referral"""
+
+@api_router.post("/referrals", response_model=ReferralOut)
+async def create_referral(body: ReferralCreate):
     try:
-        referral = Referral(
-            patient_name=referral_input.patient_name,
-            referral_source=referral_input.referral_source
+        ref_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        execute_query(
+            "INSERT INTO referrals (id, patient_name, referral_source, status, created_at) VALUES (%s, %s, %s, 'pending', %s)",
+            (ref_id, body.patient_name, body.referral_source, now)
         )
-        
-        doc = referral.model_dump()
-        await db.referrals.insert_one(doc)
-        
-        logger.info(f"Created referral: {referral.id}")
-        return referral
+        return ReferralOut(
+            id=ref_id,
+            patient_name=body.patient_name,
+            referral_source=body.referral_source,
+            status="pending",
+            created_at=now,
+        )
     except Exception as e:
         logger.error(f"Error creating referral: {e}")
         raise HTTPException(status_code=500, detail="Error creating referral")
 
-@api_router.post("/upload")
-async def upload_file(file: UploadFile = File(...), referral_id: str = None):
-    """Upload a file to object storage"""
+
+# ─── Activities ──────────────────────────────────────────────────────────────
+
+@api_router.post("/referrals/{referral_id}/activities", response_model=ActivityOut)
+async def create_activity(referral_id: str, body: ActivityCreate):
     try:
-        # Read file data
-        data = await file.read()
-        
-        # Generate unique path
-        ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
-        file_id = str(uuid.uuid4())
-        path = f"{APP_NAME}/referrals/{file_id}.{ext}"
-        
-        # Upload to object storage
-        result = put_object(path, data, file.content_type or "application/octet-stream")
-        
-        # Store file record in database
-        file_record = FileRecord(
-            storage_path=result["path"],
-            original_filename=file.filename,
-            content_type=file.content_type or "application/octet-stream",
-            size=result["size"],
-            referral_id=referral_id
+        # check referral exists
+        ref = execute_query("SELECT id FROM referrals WHERE id = %s", (referral_id,), fetch=True)
+        if not ref:
+            raise HTTPException(status_code=404, detail="Referral not found")
+
+        act_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        execute_query(
+            "INSERT INTO activities (id, referral_id, activity_type, date_time, notes, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
+            (act_id, referral_id, body.activity_type, body.date_time, body.notes, now)
         )
-        
-        await db.files.insert_one(file_record.model_dump())
-        
-        # If referral_id provided, add file path to referral
-        if referral_id:
-            await db.referrals.update_one(
-                {"id": referral_id},
-                {"$push": {"file_paths": result["path"]}}
-            )
-        
-        logger.info(f"Uploaded file: {file.filename} -> {result['path']}")
+        return ActivityOut(
+            id=act_id,
+            referral_id=referral_id,
+            activity_type=body.activity_type,
+            date_time=body.date_time,
+            notes=body.notes,
+            created_at=now,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating activity: {e}")
+        raise HTTPException(status_code=500, detail="Error creating activity")
+
+
+@api_router.get("/referrals/{referral_id}/activities", response_model=List[ActivityOut])
+async def get_activities(referral_id: str):
+    try:
+        rows = execute_query(
+            "SELECT id, referral_id, activity_type, date_time, notes, created_at FROM activities WHERE referral_id = %s ORDER BY date_time DESC",
+            (referral_id,), fetch=True
+        )
+        return [row_to_dict(r) for r in (rows or [])]
+    except Exception as e:
+        logger.error(f"Error fetching activities: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching activities")
+
+
+# ─── File Upload & Document Management ───────────────────────────────────────
+
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), referral_id: str = Query(None)):
+    try:
+        # Validate file type
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext and ext not in ALLOWED_FILE_TYPES:
+            raise HTTPException(status_code=400, detail=f"File type .{ext} not allowed. Allowed: {', '.join(ALLOWED_FILE_TYPES)}")
+
+        data = await file.read()
+
+        # Validate file size
+        if len(data) > MAX_FILE_SIZE_MB * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"File exceeds max size of {MAX_FILE_SIZE_MB}MB")
+
+        # Build configurable storage path
+        path = build_storage_path(referral_id or "unlinked", file.filename)
+
+        result = put_object(path, data, file.content_type or "application/octet-stream")
+
+        file_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        execute_query(
+            "INSERT INTO files (id, referral_id, storage_path, original_filename, content_type, size, notes, tags, is_deleted, created_at) VALUES (%s, %s, %s, %s, %s, %s, '', '', FALSE, %s)",
+            (file_id, referral_id, result["path"], file.filename, file.content_type or "application/octet-stream", result["size"], now)
+        )
+
         return {
-            "id": file_record.id,
+            "id": file_id,
             "filename": file.filename,
             "path": result["path"],
-            "size": result["size"]
+            "size": result["size"],
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
+
+@api_router.get("/referrals/{referral_id}/documents", response_model=List[FileOut])
+async def get_documents(referral_id: str):
+    """List all documents for a referral."""
+    try:
+        rows = execute_query(
+            "SELECT id, referral_id, storage_path, original_filename, content_type, size, notes, tags, is_deleted, created_at FROM files WHERE referral_id = %s AND is_deleted = FALSE ORDER BY created_at DESC",
+            (referral_id,), fetch=True
+        )
+        return [row_to_dict(r) for r in (rows or [])]
+    except Exception as e:
+        logger.error(f"Error fetching documents: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching documents")
+
+
+@api_router.patch("/files/{file_id}", response_model=FileOut)
+async def update_file(file_id: str, body: FileUpdate):
+    """Update notes/tags for a document."""
+    try:
+        existing = execute_query(
+            "SELECT id FROM files WHERE id = %s AND is_deleted = FALSE", (file_id,), fetch=True
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        updates = []
+        params = []
+        if body.notes is not None:
+            updates.append("notes = %s")
+            params.append(body.notes)
+        if body.tags is not None:
+            updates.append("tags = %s")
+            params.append(body.tags)
+
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        params.append(file_id)
+        execute_query(
+            f"UPDATE files SET {', '.join(updates)} WHERE id = %s",
+            tuple(params)
+        )
+
+        row = execute_query(
+            "SELECT id, referral_id, storage_path, original_filename, content_type, size, notes, tags, is_deleted, created_at FROM files WHERE id = %s",
+            (file_id,), fetch=True
+        )
+        return row_to_dict(row[0])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating file: {e}")
+        raise HTTPException(status_code=500, detail="Error updating file")
+
+
+@api_router.delete("/files/{file_id}")
+async def delete_file(file_id: str):
+    """Soft-delete a document."""
+    try:
+        existing = execute_query(
+            "SELECT id FROM files WHERE id = %s AND is_deleted = FALSE", (file_id,), fetch=True
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        execute_query("UPDATE files SET is_deleted = TRUE WHERE id = %s", (file_id,))
+        return {"message": "File deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting file: {e}")
+        raise HTTPException(status_code=500, detail="Error deleting file")
+
+
 @api_router.get("/files/{file_path:path}")
 async def download_file(file_path: str):
-    """Download a file from object storage"""
+    """Download a file from object storage."""
     try:
-        # Get file record from database
-        file_record = await db.files.find_one(
-            {"storage_path": file_path, "is_deleted": False},
-            {"_id": 0}
+        record = execute_query(
+            "SELECT content_type FROM files WHERE storage_path = %s AND is_deleted = FALSE",
+            (file_path,), fetch=True
         )
-        
-        if not file_record:
+        if not record:
             raise HTTPException(status_code=404, detail="File not found")
-        
-        # Download from object storage
+
         data, content_type = get_object(file_path)
-        
         return Response(
             content=data,
-            media_type=file_record.get("content_type", content_type)
+            media_type=record[0].get("CONTENT_TYPE", content_type)
         )
     except HTTPException:
         raise
@@ -246,26 +425,34 @@ async def download_file(file_path: str):
         logger.error(f"Error downloading file: {e}")
         raise HTTPException(status_code=500, detail="Error downloading file")
 
-# Include the router in the main app
+
+# ─── App Lifecycle ───────────────────────────────────────────────────────────
+
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 async def startup():
-    """Initialize storage on startup"""
+    try:
+        init_tables()
+        logger.info("Snowflake tables ready")
+    except Exception as e:
+        logger.error(f"Snowflake init failed: {e} — the app will still serve requests but DB operations will fail until connection is configured.")
     try:
         init_storage()
-        logger.info("Application started successfully")
+        logger.info("Object storage ready")
     except Exception as e:
-        logger.error(f"Startup failed: {e}")
+        logger.error(f"Storage init failed: {e}")
+
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+async def shutdown():
+    close_connection()

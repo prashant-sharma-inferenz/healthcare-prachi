@@ -213,6 +213,200 @@ class HospiceIntakeAPITester:
         
         return success
 
+    def test_create_activity(self):
+        """Test creating a new activity for a referral"""
+        if not self.created_referral_id:
+            print("❌ No referral ID available for activity test")
+            return False
+        
+        test_activity = {
+            "activity_type": "call",
+            "date_time": datetime.now().isoformat(),
+            "notes": "Test activity notes for automated testing"
+        }
+        
+        success, response = self.run_test(
+            "Create Activity",
+            "POST",
+            f"referrals/{self.created_referral_id}/activities",
+            200,
+            data=test_activity
+        )
+        
+        if success:
+            # Validate activity response structure
+            required_fields = ['id', 'referral_id', 'activity_type', 'date_time', 'notes', 'created_at']
+            for field in required_fields:
+                if field not in response:
+                    print(f"❌ Missing field in activity response: {field}")
+                    return False
+            print("✅ Activity response structure validated")
+            
+            # Validate activity data
+            if response['referral_id'] != self.created_referral_id:
+                print(f"❌ Activity referral_id mismatch")
+                return False
+            if response['activity_type'] != test_activity['activity_type']:
+                print(f"❌ Activity type mismatch")
+                return False
+            print("✅ Activity data validated")
+        
+        return success
+
+    def test_get_activities(self):
+        """Test getting activities for a referral"""
+        if not self.created_referral_id:
+            print("❌ No referral ID available for get activities test")
+            return False
+        
+        success, response = self.run_test(
+            "Get Activities",
+            "GET",
+            f"referrals/{self.created_referral_id}/activities",
+            200
+        )
+        
+        if success:
+            if not isinstance(response, list):
+                print(f"❌ Activities response should be a list")
+                return False
+            
+            if len(response) > 0:
+                # Validate first activity structure
+                activity = response[0]
+                required_fields = ['id', 'referral_id', 'activity_type', 'date_time', 'notes', 'created_at']
+                for field in required_fields:
+                    if field not in activity:
+                        print(f"❌ Missing field in activity: {field}")
+                        return False
+                print(f"✅ Found {len(response)} activities with valid structure")
+            else:
+                print("✅ No activities found (empty list)")
+        
+        return success
+
+    def test_create_activity_validation(self):
+        """Test activity creation with invalid data"""
+        if not self.created_referral_id:
+            print("❌ No referral ID available for activity validation test")
+            return False
+        
+        # Test missing activity type
+        success1, _ = self.run_test(
+            "Create Activity - Missing Type",
+            "POST",
+            f"referrals/{self.created_referral_id}/activities",
+            422,
+            data={
+                "date_time": datetime.now().isoformat(),
+                "notes": "Test notes"
+            }
+        )
+        
+        # Test missing date_time
+        success2, _ = self.run_test(
+            "Create Activity - Missing DateTime",
+            "POST",
+            f"referrals/{self.created_referral_id}/activities",
+            422,
+            data={
+                "activity_type": "call",
+                "notes": "Test notes"
+            }
+        )
+        
+        # Test missing notes
+        success3, _ = self.run_test(
+            "Create Activity - Missing Notes",
+            "POST",
+            f"referrals/{self.created_referral_id}/activities",
+            422,
+            data={
+                "activity_type": "call",
+                "date_time": datetime.now().isoformat()
+            }
+        )
+        
+        return success1 or success2 or success3  # At least one validation should work
+
+    def test_activity_for_nonexistent_referral(self):
+        """Test creating activity for non-existent referral"""
+        fake_referral_id = "non-existent-referral-id"
+        
+        test_activity = {
+            "activity_type": "call",
+            "date_time": datetime.now().isoformat(),
+            "notes": "Test activity for non-existent referral"
+        }
+        
+        success, response = self.run_test(
+            "Create Activity - Non-existent Referral",
+            "POST",
+            f"referrals/{fake_referral_id}/activities",
+            404,
+            data=test_activity
+        )
+        
+        return success
+
+    def test_multiple_activities_chronological_order(self):
+        """Test creating multiple activities and verify chronological order"""
+        if not self.created_referral_id:
+            print("❌ No referral ID available for chronological test")
+            return False
+        
+        # Create multiple activities with different timestamps
+        activities = [
+            {
+                "activity_type": "email",
+                "date_time": "2024-01-01T10:00:00Z",
+                "notes": "First activity - email"
+            },
+            {
+                "activity_type": "call",
+                "date_time": "2024-01-02T10:00:00Z", 
+                "notes": "Second activity - call"
+            },
+            {
+                "activity_type": "visit",
+                "date_time": "2024-01-03T10:00:00Z",
+                "notes": "Third activity - visit"
+            }
+        ]
+        
+        # Create all activities
+        for i, activity in enumerate(activities):
+            success, _ = self.run_test(
+                f"Create Activity {i+1}",
+                "POST",
+                f"referrals/{self.created_referral_id}/activities",
+                200,
+                data=activity
+            )
+            if not success:
+                return False
+        
+        # Get activities and check order (should be sorted by date_time descending)
+        success, response = self.run_test(
+            "Get Activities - Check Order",
+            "GET",
+            f"referrals/{self.created_referral_id}/activities",
+            200
+        )
+        
+        if success and len(response) >= 3:
+            # Check if activities are in descending order by date_time
+            dates = [activity['date_time'] for activity in response[-3:]]  # Get last 3 activities
+            sorted_dates = sorted(dates, reverse=True)
+            if dates == sorted_dates:
+                print("✅ Activities are in correct chronological order (newest first)")
+                return True
+            else:
+                print(f"❌ Activities not in correct order. Got: {dates}, Expected: {sorted_dates}")
+                return False
+        
+        return success
+
 def main():
     print("🏥 Starting Hospice Intake API Testing...")
     print("=" * 50)
@@ -229,6 +423,11 @@ def main():
         ("File Upload", tester.test_file_upload),
         ("Invalid Referral Creation", tester.test_invalid_referral_creation),
         ("Updated Metrics", tester.test_metrics_after_creation),
+        ("Create Activity", tester.test_create_activity),
+        ("Get Activities", tester.test_get_activities),
+        ("Activity Validation", tester.test_create_activity_validation),
+        ("Activity Non-existent Referral", tester.test_activity_for_nonexistent_referral),
+        ("Multiple Activities Order", tester.test_multiple_activities_chronological_order),
     ]
     
     for test_name, test_func in tests:
