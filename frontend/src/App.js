@@ -2,8 +2,9 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import AddReferral from "./pages/AddReferral";
+import Settings from "./pages/Settings";
 import { Toaster } from "./components/ui/sonner";
-import { Activity, Plus } from "lucide-react";
+import { Activity, Plus, Settings as SettingsIcon } from "lucide-react";
 import "@/App.css";
 
 const Layout = ({ children }) => {
@@ -43,6 +44,18 @@ const Layout = ({ children }) => {
                 <Plus className="w-4 h-4" />
                 Add Referral
               </Link>
+              <Link
+                to="/settings"
+                data-testid="nav-settings"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                  location.pathname === "/settings"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                }`}
+              >
+                <SettingsIcon className="w-4 h-4" />
+                Settings
+              </Link>
             </div>
           </div>
         </div>
@@ -64,6 +77,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/add-referral" element={<AddReferral />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Layout>
       </BrowserRouter>

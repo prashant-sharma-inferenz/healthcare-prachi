@@ -1,0 +1,23 @@
+{
+  "snowflake": {
+    "account": "",
+    "user": "",
+    "password": "",
+    "database": "",
+    "schema": "",
+    "warehouse": "",
+    "role": ""
+  },
+  "aws_s3": {
+    "access_key_id": "",
+    "secret_access_key": "",
+    "bucket_name": "",
+    "region": "us-east-1",
+    "base_folder_path": "hospice-intake"
+  },
+  "storage": {
+    "folder_format": "referrals/{referral_id}",
+    "max_file_size_mb": 50,
+    "allowed_file_types": "pdf,doc,docx,png,jpg,jpeg,gif,webp,txt,csv,xls,xlsx"
+  }
+}

@@ -5,30 +5,25 @@ from starlette.middleware.cors import CORSMiddleware
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
-import requests
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
+import snowflake.connector
 
-from database import get_connection, close_connection, execute_query, init_tables
+from database import get_connection, close_connection, reset_connection, execute_query, init_tables
+from config_manager import (
+    load_config, save_config, get_config_for_display,
+    get_s3_config, get_storage_config, get_snowflake_config
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Object Storage Configuration (all config-driven)
-STORAGE_URL = os.environ.get("STORAGE_URL", "https://integrations.emergentagent.com/objstore/api/v1/storage")
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
-STORAGE_BASE_PATH = os.environ.get("STORAGE_BASE_PATH", "hospice-intake")
-STORAGE_FOLDER_FORMAT = os.environ.get("STORAGE_FOLDER_FORMAT", "referrals/{referral_id}")
-MAX_FILE_SIZE_MB = int(os.environ.get("MAX_FILE_SIZE_MB", "50"))
-ALLOWED_FILE_TYPES = os.environ.get("ALLOWED_FILE_TYPES", "pdf,doc,docx,png,jpg,jpeg,gif,webp,txt,csv,xls,xlsx").split(",")
-storage_key = None
-
 # Create the main app
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
 # Configure logging
@@ -39,55 +34,51 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ─── Object Storage Functions ────────────────────────────────────────────────
+# ─── AWS S3 Functions ────────────────────────────────────────────────────────
 
-def init_storage():
-    global storage_key
-    if storage_key:
-        return storage_key
-    try:
-        resp = requests.post(
-            f"{STORAGE_URL}/init",
-            json={"emergent_key": EMERGENT_KEY},
-            timeout=30
-        )
-        resp.raise_for_status()
-        storage_key = resp.json()["storage_key"]
-        logger.info("Storage initialized successfully")
-        return storage_key
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-        raise
-
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data,
-        timeout=120
+def get_s3_client():
+    """Create S3 client from config.json."""
+    cfg = get_s3_config()
+    if not cfg.get("access_key_id") or not cfg.get("secret_access_key"):
+        raise ConnectionError("AWS S3 not configured. Please update settings.")
+    return boto3.client(
+        "s3",
+        aws_access_key_id=cfg["access_key_id"],
+        aws_secret_access_key=cfg["secret_access_key"],
+        region_name=cfg.get("region", "us-east-1"),
     )
-    resp.raise_for_status()
-    return resp.json()
 
 
-def get_object(path: str) -> tuple:
-    key = init_storage()
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key},
-        timeout=60
+def s3_upload(path: str, data: bytes, content_type: str) -> dict:
+    """Upload file to S3. Returns dict with path and size."""
+    cfg = get_s3_config()
+    client = get_s3_client()
+    client.put_object(
+        Bucket=cfg["bucket_name"],
+        Key=path,
+        Body=data,
+        ContentType=content_type,
     )
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+    return {"path": path, "size": len(data)}
+
+
+def s3_download(path: str) -> tuple:
+    """Download file from S3. Returns (bytes, content_type)."""
+    cfg = get_s3_config()
+    client = get_s3_client()
+    obj = client.get_object(Bucket=cfg["bucket_name"], Key=path)
+    return obj["Body"].read(), obj.get("ContentType", "application/octet-stream")
 
 
 def build_storage_path(referral_id: str, filename: str) -> str:
-    """Build storage path using configurable format."""
+    """Build S3 key using configurable format from config.json."""
+    cfg = get_s3_config()
+    stor = get_storage_config()
     ext = filename.rsplit(".", 1)[-1] if "." in filename else "bin"
-    folder = STORAGE_FOLDER_FORMAT.format(referral_id=referral_id)
-    return f"{STORAGE_BASE_PATH}/{folder}/{uuid.uuid4()}.{ext}"
+    base = cfg.get("base_folder_path", "hospice-intake")
+    folder_fmt = stor.get("folder_format", "referrals/{referral_id}")
+    folder = folder_fmt.format(referral_id=referral_id)
+    return f"{base}/{folder}/{uuid.uuid4()}.{ext}"
 
 
 # ─── Pydantic Models ────────────────────────────────────────────────────────
@@ -138,17 +129,15 @@ class FileUpdate(BaseModel):
     notes: Optional[str] = None
     tags: Optional[str] = None
 
-class StorageConfig(BaseModel):
-    storage_base_path: str
-    storage_folder_format: str
-    max_file_size_mb: int
-    allowed_file_types: List[str]
+class SettingsInput(BaseModel):
+    snowflake: dict
+    aws_s3: dict
+    storage: dict
 
 
-# ─── Helper to convert Snowflake rows ────────────────────────────────────────
+# ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def row_to_dict(row: dict) -> dict:
-    """Convert Snowflake row (uppercase keys) to lowercase and serialize datetimes."""
     result = {}
     for k, v in row.items():
         key = k.lower()
@@ -161,22 +150,100 @@ def row_to_dict(row: dict) -> dict:
     return result
 
 
-# ─── API Routes ──────────────────────────────────────────────────────────────
+# ─── Settings API ────────────────────────────────────────────────────────────
+
+@api_router.get("/settings")
+async def get_settings():
+    """Return current config with sensitive fields masked."""
+    return get_config_for_display()
+
+
+@api_router.put("/settings")
+async def update_settings(body: SettingsInput):
+    """Save new settings to config.json."""
+    try:
+        current = load_config()
+
+        # For masked/blank passwords keep the old value
+        new_cfg = body.dict()
+        if "****" in new_cfg["snowflake"].get("password", "") or not new_cfg["snowflake"].get("password"):
+            new_cfg["snowflake"]["password"] = current["snowflake"]["password"]
+        if "****" in new_cfg["aws_s3"].get("secret_access_key", "") or not new_cfg["aws_s3"].get("secret_access_key"):
+            new_cfg["aws_s3"]["secret_access_key"] = current["aws_s3"]["secret_access_key"]
+        if "****" in new_cfg["aws_s3"].get("access_key_id", "") or not new_cfg["aws_s3"].get("access_key_id"):
+            new_cfg["aws_s3"]["access_key_id"] = current["aws_s3"]["access_key_id"]
+
+        save_config(new_cfg)
+
+        # Reset Snowflake connection so next call picks up new config
+        reset_connection()
+
+        return {"message": "Settings saved successfully"}
+    except Exception as e:
+        logger.error(f"Error saving settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/settings/test-snowflake")
+async def test_snowflake():
+    """Test Snowflake connection with current config.json values."""
+    cfg = get_snowflake_config()
+    if not cfg.get("account") or not cfg.get("user"):
+        return {"success": False, "message": "Snowflake account and user are required."}
+    try:
+        conn = snowflake.connector.connect(
+            account=cfg["account"],
+            user=cfg["user"],
+            password=cfg["password"],
+            database=cfg.get("database"),
+            schema=cfg.get("schema"),
+            warehouse=cfg.get("warehouse"),
+            role=cfg.get("role") or None,
+            login_timeout=15,
+        )
+        cursor = conn.cursor()
+        cursor.execute("SELECT CURRENT_VERSION()")
+        version = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        return {"success": True, "message": f"Connected to Snowflake (v{version})"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@api_router.post("/settings/test-s3")
+async def test_s3():
+    """Test AWS S3 connection with current config.json values."""
+    cfg = get_s3_config()
+    if not cfg.get("access_key_id") or not cfg.get("bucket_name"):
+        return {"success": False, "message": "AWS Access Key ID and Bucket Name are required."}
+    try:
+        client = boto3.client(
+            "s3",
+            aws_access_key_id=cfg["access_key_id"],
+            aws_secret_access_key=cfg["secret_access_key"],
+            region_name=cfg.get("region", "us-east-1"),
+        )
+        client.head_bucket(Bucket=cfg["bucket_name"])
+        return {"success": True, "message": f"Connected to S3 bucket '{cfg['bucket_name']}'"}
+    except NoCredentialsError:
+        return {"success": False, "message": "Invalid AWS credentials."}
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        if code == "404":
+            return {"success": False, "message": f"Bucket '{cfg['bucket_name']}' does not exist."}
+        elif code == "403":
+            return {"success": False, "message": "Access denied. Check your AWS credentials and bucket policy."}
+        return {"success": False, "message": str(e)}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+# ─── Core API Routes ─────────────────────────────────────────────────────────
 
 @api_router.get("/")
 async def root():
     return {"message": "Hospice Intake API"}
-
-
-@api_router.get("/config/storage", response_model=StorageConfig)
-async def get_storage_config():
-    """Return current storage configuration (read-only)."""
-    return StorageConfig(
-        storage_base_path=STORAGE_BASE_PATH,
-        storage_folder_format=STORAGE_FOLDER_FORMAT,
-        max_file_size_mb=MAX_FILE_SIZE_MB,
-        allowed_file_types=ALLOWED_FILE_TYPES,
-    )
 
 
 @api_router.get("/metrics", response_model=Metrics)
@@ -234,11 +301,8 @@ async def create_referral(body: ReferralCreate):
             (ref_id, body.patient_name, body.referral_source, now)
         )
         return ReferralOut(
-            id=ref_id,
-            patient_name=body.patient_name,
-            referral_source=body.referral_source,
-            status="pending",
-            created_at=now,
+            id=ref_id, patient_name=body.patient_name,
+            referral_source=body.referral_source, status="pending", created_at=now,
         )
     except Exception as e:
         logger.error(f"Error creating referral: {e}")
@@ -250,11 +314,9 @@ async def create_referral(body: ReferralCreate):
 @api_router.post("/referrals/{referral_id}/activities", response_model=ActivityOut)
 async def create_activity(referral_id: str, body: ActivityCreate):
     try:
-        # check referral exists
         ref = execute_query("SELECT id FROM referrals WHERE id = %s", (referral_id,), fetch=True)
         if not ref:
             raise HTTPException(status_code=404, detail="Referral not found")
-
         act_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         execute_query(
@@ -262,12 +324,8 @@ async def create_activity(referral_id: str, body: ActivityCreate):
             (act_id, referral_id, body.activity_type, body.date_time, body.notes, now)
         )
         return ActivityOut(
-            id=act_id,
-            referral_id=referral_id,
-            activity_type=body.activity_type,
-            date_time=body.date_time,
-            notes=body.notes,
-            created_at=now,
+            id=act_id, referral_id=referral_id, activity_type=body.activity_type,
+            date_time=body.date_time, notes=body.notes, created_at=now,
         )
     except HTTPException:
         raise
@@ -294,21 +352,20 @@ async def get_activities(referral_id: str):
 @api_router.post("/upload")
 async def upload_file(file: UploadFile = File(...), referral_id: str = Query(None)):
     try:
-        # Validate file type
+        stor = get_storage_config()
+        allowed = [t.strip() for t in stor.get("allowed_file_types", "pdf,doc,docx").split(",")]
+        max_mb = stor.get("max_file_size_mb", 50)
+
         ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-        if ext and ext not in ALLOWED_FILE_TYPES:
-            raise HTTPException(status_code=400, detail=f"File type .{ext} not allowed. Allowed: {', '.join(ALLOWED_FILE_TYPES)}")
+        if ext and ext not in allowed:
+            raise HTTPException(status_code=400, detail=f"File type .{ext} not allowed.")
 
         data = await file.read()
+        if len(data) > max_mb * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"File exceeds max size of {max_mb}MB")
 
-        # Validate file size
-        if len(data) > MAX_FILE_SIZE_MB * 1024 * 1024:
-            raise HTTPException(status_code=400, detail=f"File exceeds max size of {MAX_FILE_SIZE_MB}MB")
-
-        # Build configurable storage path
         path = build_storage_path(referral_id or "unlinked", file.filename)
-
-        result = put_object(path, data, file.content_type or "application/octet-stream")
+        result = s3_upload(path, data, file.content_type or "application/octet-stream")
 
         file_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -317,12 +374,7 @@ async def upload_file(file: UploadFile = File(...), referral_id: str = Query(Non
             (file_id, referral_id, result["path"], file.filename, file.content_type or "application/octet-stream", result["size"], now)
         )
 
-        return {
-            "id": file_id,
-            "filename": file.filename,
-            "path": result["path"],
-            "size": result["size"],
-        }
+        return {"id": file_id, "filename": file.filename, "path": result["path"], "size": result["size"]}
     except HTTPException:
         raise
     except Exception as e:
@@ -332,7 +384,6 @@ async def upload_file(file: UploadFile = File(...), referral_id: str = Query(Non
 
 @api_router.get("/referrals/{referral_id}/documents", response_model=List[FileOut])
 async def get_documents(referral_id: str):
-    """List all documents for a referral."""
     try:
         rows = execute_query(
             "SELECT id, referral_id, storage_path, original_filename, content_type, size, notes, tags, is_deleted, created_at FROM files WHERE referral_id = %s AND is_deleted = FALSE ORDER BY created_at DESC",
@@ -346,31 +397,21 @@ async def get_documents(referral_id: str):
 
 @api_router.patch("/files/{file_id}", response_model=FileOut)
 async def update_file(file_id: str, body: FileUpdate):
-    """Update notes/tags for a document."""
     try:
-        existing = execute_query(
-            "SELECT id FROM files WHERE id = %s AND is_deleted = FALSE", (file_id,), fetch=True
-        )
+        existing = execute_query("SELECT id FROM files WHERE id = %s AND is_deleted = FALSE", (file_id,), fetch=True)
         if not existing:
             raise HTTPException(status_code=404, detail="File not found")
 
-        updates = []
-        params = []
+        updates, params = [], []
         if body.notes is not None:
-            updates.append("notes = %s")
-            params.append(body.notes)
+            updates.append("notes = %s"); params.append(body.notes)
         if body.tags is not None:
-            updates.append("tags = %s")
-            params.append(body.tags)
-
+            updates.append("tags = %s"); params.append(body.tags)
         if not updates:
             raise HTTPException(status_code=400, detail="No fields to update")
 
         params.append(file_id)
-        execute_query(
-            f"UPDATE files SET {', '.join(updates)} WHERE id = %s",
-            tuple(params)
-        )
+        execute_query(f"UPDATE files SET {', '.join(updates)} WHERE id = %s", tuple(params))
 
         row = execute_query(
             "SELECT id, referral_id, storage_path, original_filename, content_type, size, notes, tags, is_deleted, created_at FROM files WHERE id = %s",
@@ -386,14 +427,10 @@ async def update_file(file_id: str, body: FileUpdate):
 
 @api_router.delete("/files/{file_id}")
 async def delete_file(file_id: str):
-    """Soft-delete a document."""
     try:
-        existing = execute_query(
-            "SELECT id FROM files WHERE id = %s AND is_deleted = FALSE", (file_id,), fetch=True
-        )
+        existing = execute_query("SELECT id FROM files WHERE id = %s AND is_deleted = FALSE", (file_id,), fetch=True)
         if not existing:
             raise HTTPException(status_code=404, detail="File not found")
-
         execute_query("UPDATE files SET is_deleted = TRUE WHERE id = %s", (file_id,))
         return {"message": "File deleted successfully"}
     except HTTPException:
@@ -405,7 +442,6 @@ async def delete_file(file_id: str):
 
 @api_router.get("/files/{file_path:path}")
 async def download_file(file_path: str):
-    """Download a file from object storage."""
     try:
         record = execute_query(
             "SELECT content_type FROM files WHERE storage_path = %s AND is_deleted = FALSE",
@@ -413,12 +449,8 @@ async def download_file(file_path: str):
         )
         if not record:
             raise HTTPException(status_code=404, detail="File not found")
-
-        data, content_type = get_object(file_path)
-        return Response(
-            content=data,
-            media_type=record[0].get("CONTENT_TYPE", content_type)
-        )
+        data, content_type = s3_download(file_path)
+        return Response(content=data, media_type=record[0].get("CONTENT_TYPE", content_type))
     except HTTPException:
         raise
     except Exception as e:
@@ -445,12 +477,7 @@ async def startup():
         init_tables()
         logger.info("Snowflake tables ready")
     except Exception as e:
-        logger.error(f"Snowflake init failed: {e} — the app will still serve requests but DB operations will fail until connection is configured.")
-    try:
-        init_storage()
-        logger.info("Object storage ready")
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
+        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
 
 
 @app.on_event("shutdown")

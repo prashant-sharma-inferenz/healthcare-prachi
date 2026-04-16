@@ -1,6 +1,6 @@
 import snowflake.connector
-import os
 import logging
+from config_manager import get_snowflake_config
 
 logger = logging.getLogger(__name__)
 
@@ -8,20 +8,25 @@ _connection = None
 
 
 def get_connection():
-    """Get or create a Snowflake connection using .env config."""
+    """Get or create a Snowflake connection using config.json."""
     global _connection
     if _connection and not _connection.is_closed():
         return _connection
 
+    cfg = get_snowflake_config()
+
+    if not cfg.get("account") or not cfg.get("user"):
+        raise ConnectionError("Snowflake not configured. Please update settings.")
+
     try:
         _connection = snowflake.connector.connect(
-            account=os.environ.get("SNOWFLAKE_ACCOUNT"),
-            user=os.environ.get("SNOWFLAKE_USER"),
-            password=os.environ.get("SNOWFLAKE_PASSWORD"),
-            database=os.environ.get("SNOWFLAKE_DATABASE"),
-            schema=os.environ.get("SNOWFLAKE_SCHEMA"),
-            warehouse=os.environ.get("SNOWFLAKE_WAREHOUSE"),
-            role=os.environ.get("SNOWFLAKE_ROLE"),
+            account=cfg["account"],
+            user=cfg["user"],
+            password=cfg["password"],
+            database=cfg["database"],
+            schema=cfg["schema"],
+            warehouse=cfg["warehouse"],
+            role=cfg.get("role") or None,
         )
         logger.info("Snowflake connection established")
         return _connection
@@ -35,7 +40,13 @@ def close_connection():
     global _connection
     if _connection and not _connection.is_closed():
         _connection.close()
+        _connection = None
         logger.info("Snowflake connection closed")
+
+
+def reset_connection():
+    """Force close and reset so next call reconnects with fresh config."""
+    close_connection()
 
 
 def execute_query(query: str, params: tuple = None, fetch: bool = False):
@@ -47,16 +58,6 @@ def execute_query(query: str, params: tuple = None, fetch: bool = False):
         if fetch:
             return cursor.fetchall()
         return None
-    finally:
-        cursor.close()
-
-
-def execute_many(query: str, params_list: list):
-    """Execute a query with multiple parameter sets."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.executemany(query, params_list)
     finally:
         cursor.close()
 
