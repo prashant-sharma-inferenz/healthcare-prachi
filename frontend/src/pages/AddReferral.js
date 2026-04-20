@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+console.log("Using backend API URL:", BACKEND_URL);
+
 const AddReferral = () => {
   const navigate = useNavigate();
   const [patientName, setPatientName] = useState("");
@@ -76,6 +78,7 @@ const AddReferral = () => {
       const referralId = referralResponse.data.id;
 
       // Upload files if any
+      let s3Path = "";
       if (files.length > 0) {
         const uploadPromises = files.map(async (file) => {
           const formData = new FormData();
@@ -89,7 +92,41 @@ const AddReferral = () => {
           });
         });
 
-        await Promise.all(uploadPromises);
+        const uploadResponses = await Promise.all(uploadPromises);
+        // Get the S3 path from the first uploaded file
+        if (uploadResponses.length > 0 && uploadResponses[0].data) {
+          s3Path = uploadResponses[0].data.path;
+        }
+      }
+
+      // Login to get token for workflow trigger
+      try {
+        const loginResponse = await axios.post(`${process.env.REACT_APP_CAREGENCE_API_PATH}/users/login`, {
+          email: process.env.REACT_APP_ADMIN_USERNAME,
+          password: process.env.REACT_APP_ADMIN_PASSWORD
+        });
+
+        if (loginResponse.data?.success) {
+          const accessToken = loginResponse.data.data.access_token;
+
+          // Trigger the workflow
+          await axios.post(
+            `${process.env.REACT_APP_CAREGENCE_API_PATH}/utility/start-workflow-trigger?workflow_id=ae17a001-612f-4870-824e-c24e17c33fc2`,
+            {
+              referral_id: referralId
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`
+              }
+            }
+          );
+          console.log("Workflow triggered successfully");
+        }
+      } catch (workflowErr) {
+        console.error("Error triggering workflow:", workflowErr);
+        // We don't necessarily want to block the user if the workflow trigger fails 
+        // since the referral was already created in the main DB.
       }
 
       toast.success("Referral created successfully");
@@ -159,11 +196,10 @@ const AddReferral = () => {
             <Label className="text-sm font-medium">Referral Package</Label>
             <div
               data-testid="file-upload-zone"
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragActive
-                  ? "border-primary bg-muted/50"
-                  : "border-border bg-muted/20 hover:bg-muted/50"
-              }`}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
+                ? "border-primary bg-muted/50"
+                : "border-border bg-muted/20 hover:bg-muted/50"
+                }`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
