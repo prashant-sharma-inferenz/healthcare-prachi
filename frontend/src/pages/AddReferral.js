@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+console.log("Using backend API URL:", BACKEND_URL);
+
 const AddReferral = () => {
   const navigate = useNavigate();
   const [patientName, setPatientName] = useState("");
@@ -99,7 +101,7 @@ const AddReferral = () => {
 
       // Login to get token for workflow trigger
       try {
-        const loginResponse = await axios.post("https://dev-api.caregence.ai/users/login", {
+        const loginResponse = await axios.post(`${process.env.REACT_APP_CAREGENCE_API_PATH}/users/login`, {
           email: process.env.REACT_APP_ADMIN_USERNAME,
           password: process.env.REACT_APP_ADMIN_PASSWORD
         });
@@ -109,7 +111,7 @@ const AddReferral = () => {
 
           // Trigger the workflow
           await axios.post(
-            "https://dev-api.caregence.ai/utility/start-workflow-trigger?workflow_id=ae17a001-612f-4870-824e-c24e17c33fc2",
+            `${process.env.REACT_APP_CAREGENCE_API_PATH}/utility/start-workflow-trigger?workflow_id=ae17a001-612f-4870-824e-c24e17c33fc2`,
             {
               referral_id: referralId
             },
