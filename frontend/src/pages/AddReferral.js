@@ -100,8 +100,8 @@ const AddReferral = () => {
       // Login to get token for workflow trigger
       try {
         const loginResponse = await axios.post("https://dev-api.caregence.ai/users/login", {
-          email: "administrator@caregence.ai",
-          password: "c9*mrwC!78"
+          email: process.env.REACT_APP_ADMIN_USERNAME,
+          password: process.env.REACT_APP_ADMIN_PASSWORD
         });
 
         if (loginResponse.data?.success) {
