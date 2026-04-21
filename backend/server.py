@@ -49,8 +49,11 @@ def get_s3_client():
     )
 
 
+
 def s3_upload(path: str, data: bytes, content_type: str) -> dict:
     """Upload file to S3. Returns dict with path and size."""
+    """Upload file to S3. Returns dict with path, size, and full URL."""
+    
     cfg = get_s3_config()
     client = get_s3_client()
     client.put_object(
@@ -59,7 +62,13 @@ def s3_upload(path: str, data: bytes, content_type: str) -> dict:
         Body=data,
         ContentType=content_type,
     )
-    return {"path": path, "size": len(data)}
+    region = cfg.get("region")  # make sure region is in your config
+    bucket = cfg["bucket_name"]
+    file_url = f"https://{bucket}.s3.{region}.amazonaws.com/{path}"
+    return {
+        "path": file_url,
+        "size": len(data)
+    }
 
 
 def s3_download(path: str) -> tuple:
