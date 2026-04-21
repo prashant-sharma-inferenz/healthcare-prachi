@@ -4,6 +4,8 @@ import { Users, Clock, TrendingUp, XCircle, Activity, FileText } from "lucide-re
 import { toast } from "sonner";
 import ActivityDialog from "../components/ActivityDialog";
 import DocumentsDialog from "../components/DocumentsDialog";
+import OCRDataModal from "./OCRDataPendingReferrals";
+import sampleOCRData from "../data/sampleOCRData.json";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -40,13 +42,16 @@ const Dashboard = () => {
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [documentsDialogOpen, setDocumentsDialogOpen] = useState(false);
   const [docsReferral, setDocsReferral] = useState(null);
+  const [ocrDataOpen, setOcrDataOpen] = useState(false);
+  const [ocrReferral, setOcrReferral] = useState(null);
+  const [ocrData, setOcrData] = useState(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const [metricsRes, referralsRes] = await Promise.all([
         axios.get(`${API}/metrics`),
-        axios.get(`${API}/referrals?status=pending`),
+        axios.get(`${API}/referrals`),
       ]);
 
       setMetrics(metricsRes.data);
@@ -80,6 +85,13 @@ const Dashboard = () => {
     e.stopPropagation();
     setDocsReferral(referral);
     setDocumentsDialogOpen(true);
+  };
+
+  const handleOcrDataClick = (e, referral) => {
+    e.stopPropagation();
+    setOcrReferral(referral);
+    setOcrData(sampleOCRData);
+    setOcrDataOpen(true);
   };
 
   return (
@@ -185,7 +197,7 @@ const Dashboard = () => {
                           ? "Processing"
                           : referral.is_eligible === "eligible" || referral.is_eligible === "Eligible"
                           ? "Eligible"
-                          : "Ineligible";
+                          : "Not Eligible";
 
                         const statusClass =
                           status === "Processing"
@@ -202,7 +214,7 @@ const Dashboard = () => {
                       })()}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <button
                           data-testid={`view-activities-btn-${referral.id}`}
                           className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
@@ -221,6 +233,14 @@ const Dashboard = () => {
                         >
                           <FileText className="w-4 h-4" />
                           Documents
+                        </button>
+                        <button
+                          data-testid={`view-ocr-data-btn-${referral.id}`}
+                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          onClick={(e) => handleOcrDataClick(e, referral)}
+                        >
+                          <FileText className="w-4 h-4" />
+                          OCR Data
                         </button>
                       </div>
                     </td>
@@ -244,6 +264,13 @@ const Dashboard = () => {
         open={documentsDialogOpen}
         onOpenChange={setDocumentsDialogOpen}
         referral={docsReferral}
+      />
+
+      {/* OCR Data Modal */}
+      <OCRDataModal
+        isOpen={ocrDataOpen}
+        onClose={() => setOcrDataOpen(false)}
+        data={ocrData}
       />
     </div>
   );

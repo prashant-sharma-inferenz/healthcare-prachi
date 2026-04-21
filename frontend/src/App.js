@@ -4,7 +4,7 @@ import Dashboard from "./pages/Dashboard";
 import AddReferral from "./pages/AddReferral";
 import Settings from "./pages/Settings";
 import { Toaster } from "./components/ui/sonner";
-import { Activity, Plus, Settings as SettingsIcon } from "lucide-react";
+import { Plus, Settings as SettingsIcon, LayoutDashboard } from "lucide-react";
 import "@/App.css";
 
 const Layout = ({ children }) => {
@@ -17,8 +17,13 @@ const Layout = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <Activity className="w-6 h-6 text-primary" />
-              <h1 className="text-xl font-semibold text-foreground">Hospice Intake</h1>
+              <Link
+                to="/"
+                className="flex"
+              >
+                <img src="/favicon.ico" alt="Caregence Logo" className="w-[30px] h-auto mr-[10px]" />
+                <h1 className="text-xl font-semibold text-foreground">Caregence Hospice Intake</h1>
+              </Link>
             </div>
             <div className="flex gap-2">
               <Link

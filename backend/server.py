@@ -102,6 +102,7 @@ class ReferralOut(BaseModel):
     referral_source: str
     status: str
     created_at: str
+    is_eligible: Optional[str] = Field(default=None, description="Eligibility status: true, false, or unknown")
 
 class Metrics(BaseModel):
     total_referrals: int
@@ -286,12 +287,12 @@ async def get_referrals(status: Optional[str] = None):
     try:
         if status:
             rows = execute_query(
-                "SELECT id, patient_name, referral_source, status, created_at FROM referrals WHERE status = %s ORDER BY created_at DESC",
+                "SELECT id, patient_name, referral_source, status, created_at, IS_ELIGIBLE FROM referrals WHERE status = %s ORDER BY created_at DESC",
                 (status,), fetch=True
             )
         else:
             rows = execute_query(
-                "SELECT id, patient_name, referral_source, status, created_at FROM referrals ORDER BY created_at DESC",
+                "SELECT id, patient_name, referral_source, status, created_at, IS_ELIGIBLE FROM referrals ORDER BY created_at DESC",
                 fetch=True
             )
         return [row_to_dict(r) for r in (rows or [])]
