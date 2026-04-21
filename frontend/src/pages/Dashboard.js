@@ -150,6 +150,9 @@ const Dashboard = () => {
                     Status
                   </th>
                   <th className="text-left text-xs uppercase tracking-wider font-medium text-muted-foreground px-6 py-3">
+                    Eligibility
+                  </th>
+                  <th className="text-left text-xs uppercase tracking-wider font-medium text-muted-foreground px-6 py-3">
                     Actions
                   </th>
                 </tr>
@@ -175,6 +178,28 @@ const Dashboard = () => {
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
                         {referral.status}
                       </span>
+                    </td>
+                     <td className="px-6 py-4">
+                      {(() => {
+                        const status = referral.is_eligible == null
+                          ? "Processing"
+                          : referral.is_eligible === "eligible" || referral.is_eligible === "Eligible"
+                          ? "Eligible"
+                          : "Ineligible";
+
+                        const statusClass =
+                          status === "Processing"
+                            ? "bg-amber-100 text-amber-700"
+                            : status === "Eligible"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-rose-100 text-rose-700";
+
+                        return (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${statusClass}`}>
+                            {status}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">

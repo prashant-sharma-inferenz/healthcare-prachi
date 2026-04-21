@@ -113,7 +113,10 @@ const AddReferral = () => {
           await axios.post(
             `${process.env.REACT_APP_CAREGENCE_API_PATH}/utility/start-workflow-trigger?workflow_id=ae17a001-612f-4870-824e-c24e17c33fc2`,
             {
-              referral_id: referralId
+              referral_id: referralId,
+              patient_name: patientName,
+              referral_source: referralSource,
+              s3_path: s3Path
             },
             {
               headers: {

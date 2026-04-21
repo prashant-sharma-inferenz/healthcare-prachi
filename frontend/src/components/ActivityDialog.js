@@ -163,6 +163,8 @@ const ActivityDialog = ({ open, onOpenChange, referral }) => {
                       <SelectItem value="email">Email</SelectItem>
                       <SelectItem value="visit">Visit</SelectItem>
                       <SelectItem value="follow-up">Follow-up</SelectItem>
+                      <SelectItem value="document-scan">Document Scan</SelectItem>
+                      <SelectItem value="eligibility-check-completed">Eligibility Check Completed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

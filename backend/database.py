@@ -51,15 +51,39 @@ def reset_connection():
 
 def execute_query(query: str, params: tuple = None, fetch: bool = False):
     """Execute a SQL query. Returns rows if fetch=True."""
-    conn = get_connection()
-    cursor = conn.cursor(snowflake.connector.DictCursor)
     try:
-        cursor.execute(query, params)
-        if fetch:
-            return cursor.fetchall()
-        return None
-    finally:
-        cursor.close()
+        conn = get_connection()
+        cursor = conn.cursor(snowflake.connector.DictCursor)
+        try:
+            cursor.execute(query, params)
+            if fetch:
+                return cursor.fetchall()
+            return None
+        finally:
+            cursor.close()
+    except Exception as e:
+        error_str = str(e)
+        # Check for authentication token expired error (390114)
+        if "390114" in error_str or "Authentication token has expired" in error_str:
+            logger.warning("Authentication token expired, resetting connection and retrying")
+            reset_connection()
+            # Retry once with new connection
+            try:
+                conn = get_connection()
+                cursor = conn.cursor(snowflake.connector.DictCursor)
+                try:
+                    cursor.execute(query, params)
+                    if fetch:
+                        return cursor.fetchall()
+                    return None
+                finally:
+                    cursor.close()
+            except Exception as retry_e:
+                logger.error(f"Retry failed: {retry_e}")
+                raise retry_e
+        else:
+            logger.error(f"Database query failed: {e}")
+            raise
 
 
 def init_tables():
