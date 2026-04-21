@@ -51,7 +51,7 @@ const Dashboard = () => {
       setLoading(true);
       const [metricsRes, referralsRes] = await Promise.all([
         axios.get(`${API}/metrics`),
-        axios.get(`${API}/referrals?status=pending`),
+        axios.get(`${API}/referrals`),
       ]);
 
       setMetrics(metricsRes.data);
@@ -197,7 +197,7 @@ const Dashboard = () => {
                           ? "Processing"
                           : referral.is_eligible === "eligible" || referral.is_eligible === "Eligible"
                           ? "Eligible"
-                          : "Ineligible";
+                          : "Not Eligible";
 
                         const statusClass =
                           status === "Processing"
