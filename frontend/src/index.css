@@ -82,6 +82,26 @@ code {
     border-left-color: inherit;
     border-right-color: inherit;
     border-top-color: inherit;
-    border-bottom-color: inherit;
   }
 }
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full transition-colors hover:bg-muted-foreground/30;
+  }
+  
+  .glass-morphism {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60;
+  }
+}
+

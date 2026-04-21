@@ -158,13 +158,13 @@ const ActivityDialog = ({ open, onOpenChange, referral }) => {
                       <SelectValue placeholder="Select activity type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="call">Call</SelectItem>
-                      <SelectItem value="reach out">Reach Out</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="visit">Visit</SelectItem>
-                      <SelectItem value="follow-up">Follow-up</SelectItem>
-                      <SelectItem value="document-scan">Document Scan</SelectItem>
-                      <SelectItem value="eligibility-check-completed">Eligibility Check Completed</SelectItem>
+                      <SelectItem value="Call">Call</SelectItem>
+                      <SelectItem value="Reach Out">Reach Out</SelectItem>
+                      <SelectItem value="Email">Email</SelectItem>
+                      <SelectItem value="Visit">Visit</SelectItem>
+                      <SelectItem value="Follow up">Follow-up</SelectItem>
+                      <SelectItem value="Document Scan">Document Scan</SelectItem>
+                      <SelectItem value="Eligibility Check Completed">Eligibility Check Completed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

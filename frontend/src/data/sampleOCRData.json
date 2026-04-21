@@ -1,0 +1,144 @@
+{
+  "success": true,
+  "message": "Hospice documents processed successfully",
+  "data": {
+    "data": {
+      "prognosis": [
+        {
+          "document_name": "1be9621c-d629-470c-89b1-19f79976772b.pdf",
+          "s3_url": "https://inferenz-healthapp.s3.us-east-1.amazonaws.com/test/referrals/3820042d-9254-47fd-8575-fcd2ea311e84/1be9621c-d629-470c-89b1-19f79976772b.pdf",
+          "document_type": "face_to_face_note",
+          "confidence": "high",
+          "insights": {
+            "patient_name": "Robert King",
+            "physician_certification_present": true,
+            "certification_date": "2026-04-15",
+            "physician_name": "Dr. Susan Harper, MD",
+            "prognosis_months": 6,
+            "prognosis_statement": "Life expectancy estimated less than 6 months.",
+            "functional_decline_summary": "Bedbound, total assist for ADLs, increasing dyspnea at rest, significant weight loss.",
+            "clinical_decline_indicators": [
+              "weight loss",
+              "adl decline",
+              "dyspnea at rest",
+              "bedbound"
+            ],
+            "decline_indicator_count": 4,
+            "weight_loss": "Significant weight loss",
+            "adl_decline": "Bedbound, total assist for ADLs",
+            "supporting_evidence": "Face-to-face encounter documents metastatic lung cancer, increasing dyspnea at rest, bedbound status with total ADL assistance, significant weight loss, and prognosis of less than 6 months, signed by Dr. Susan Harper on 2026-04-15."
+          }
+        },
+        {
+          "document_name": "37301927-6dfa-47c9-8453-7846d5ad439b.pdf",
+          "s3_url": "https://inferenz-healthapp.s3.us-east-1.amazonaws.com/test/referrals/3820042d-9254-47fd-8575-fcd2ea311e84/1be9621c-d629-470c-89b1-19f79976772b.pdf",
+          "document_type": "physician_certification",
+          "confidence": "high",
+          "insights": {
+            "patient_name": "Robert King",
+            "physician_certification_present": true,
+            "certification_date": "2026-04-16",
+            "physician_name": "Dr. Susan Harper, MD",
+            "prognosis_months": 6,
+            "prognosis_statement": "Estimated Life Expectancy: Less than 6 months if disease follows expected course.",
+            "functional_decline_summary": "Bedbound, requires total assistance with ADLs, increasing fatigue and weakness.",
+            "clinical_decline_indicators": [
+              "worsening dyspnea at rest",
+              "poor oral intake",
+              "significant weight loss",
+              "bedbound",
+              "total assistance with ADLs",
+              "increasing fatigue and weakness"
+            ],
+            "decline_indicator_count": 6,
+            "weight_loss": "significant weight loss",
+            "adl_decline": "Bedbound - Requires total assistance with ADLs",
+            "documentation_complete": false,
+            "missing_documents": [
+              "Election Statement"
+            ],
+            "supporting_evidence": "Physician prognosis note for metastatic lung cancer states poor prognosis with estimated life expectancy less than 6 months; patient is bedbound, needs total ADL assistance, has worsening dyspnea, poor oral intake, significant weight loss, and increasing weakness."
+          }
+        }
+      ],
+      "functional_decline_pps": [],
+      "clinical_decline_indicators": [],
+      "utilization": [],
+      "documentation_completeness": [],
+      "uncategorized": []
+    },
+    "eligibility_summary": {
+      "total_score": 50,
+      "status": "Review",
+      "criteria_results": {
+        "prognosis": {
+          "weight": 30,
+          "met": true,
+          "observed_value": 6,
+          "score": 30
+        },
+        "functional_decline_pps": {
+          "weight": 25,
+          "met": false,
+          "observed_value": null,
+          "score": 0
+        },
+        "clinical_decline_indicators": {
+          "weight": 20,
+          "met": true,
+          "observed_value": {
+            "decline_indicator_count": 9,
+            "indicators": [
+              "adl decline",
+              "bedbound",
+              "dyspnea at rest",
+              "increasing fatigue and weakness",
+              "poor oral intake",
+              "significant weight loss",
+              "total assistance with adls",
+              "weight loss",
+              "worsening dyspnea at rest"
+            ]
+          },
+          "score": 20
+        },
+        "utilization": {
+          "weight": 10,
+          "met": false,
+          "observed_value": 0,
+          "score": 0
+        },
+        "documentation_completeness": {
+          "weight": 15,
+          "met": false,
+          "observed_value": {
+            "physician_certification_present": true,
+            "election_signed": false
+          },
+          "score": 0
+        }
+      },
+      "supporting_signals": {
+        "prognosis_months": 6,
+        "pps_score": null,
+        "decline_indicator_count": 9,
+        "decline_indicators": [
+          "adl decline",
+          "bedbound",
+          "dyspnea at rest",
+          "increasing fatigue and weakness",
+          "poor oral intake",
+          "significant weight loss",
+          "total assistance with adls",
+          "weight loss",
+          "worsening dyspnea at rest"
+        ],
+        "hospitalization_count": 0,
+        "physician_certification_present": true,
+        "election_signed": false
+      }
+    },
+    "processed_document_count": 2
+  },
+  "status_code": 200
+}
