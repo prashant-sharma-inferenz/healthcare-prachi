@@ -88,6 +88,7 @@ const AddReferral = () => {
       const referralResponse = await axios.post(`${API}/referrals`, {
         patient_name: patientName,
         referral_source: referralSource,
+        notes: ""
       });
 
       const referralId = referralResponse.data.id;
@@ -120,7 +121,7 @@ const AddReferral = () => {
         const domain = auto.domain_name || process.env.REACT_APP_CAREGENCE_API_PATH;
         const webhook = auto.webhook_url || "/utility/start-workflow-trigger";
         const email = auto.admin_username || process.env.REACT_APP_ADMIN_USERNAME;
-        
+
         // Use password from settings if not masked, otherwise from env
         let password = auto.admin_password;
         if (!password || password.includes("****")) {

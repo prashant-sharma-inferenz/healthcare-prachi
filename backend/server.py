@@ -322,7 +322,7 @@ async def create_referral(body: ReferralCreate):
         )
         return ReferralOut(
             id=ref_id, patient_name=body.patient_name,
-            referral_source=body.referral_source, status="pending", created_at=now,
+            referral_source=body.referral_source, status="pending", created_at=now, notes = {}
         )
     except Exception as e:
         logger.error(f"Error creating referral: {e}")
