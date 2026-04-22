@@ -90,7 +90,7 @@ const Dashboard = () => {
   const handleOcrDataClick = (e, referral) => {
     e.stopPropagation();
     setOcrReferral(referral);
-    setOcrData(sampleOCRData);
+    setOcrData(referral.notes);
     setOcrDataOpen(true);
   };
 
@@ -240,7 +240,7 @@ const Dashboard = () => {
                           onClick={(e) => handleOcrDataClick(e, referral)}
                         >
                           <FileText className="w-4 h-4" />
-                          OCR Data
+                          Scanned Documents
                         </button>
                       </div>
                     </td>

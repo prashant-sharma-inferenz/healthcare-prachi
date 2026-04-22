@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -20,6 +20,21 @@ const AddReferral = () => {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [automationSettings, setAutomationSettings] = useState(null);
+
+  useEffect(() => {
+    const fetchAutomationSettings = async () => {
+      try {
+        const res = await axios.get(`${API}/settings`);
+        if (res.data && res.data.automation) {
+          setAutomationSettings(res.data.automation);
+        }
+      } catch (error) {
+        console.error("Error fetching automation settings:", error);
+      }
+    };
+    fetchAutomationSettings();
+  }, []);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -101,9 +116,22 @@ const AddReferral = () => {
 
       // Login to get token for workflow trigger
       try {
-        const loginResponse = await axios.post(`${process.env.REACT_APP_CAREGENCE_API_PATH}/users/login`, {
-          email: process.env.REACT_APP_ADMIN_USERNAME,
-          password: process.env.REACT_APP_ADMIN_PASSWORD
+        const auto = automationSettings || {};
+        const domain = auto.domain_name || process.env.REACT_APP_CAREGENCE_API_PATH;
+        const webhook = auto.webhook_url || "/utility/start-workflow-trigger";
+        const email = auto.admin_username || process.env.REACT_APP_ADMIN_USERNAME;
+        
+        // Use password from settings if not masked, otherwise from env
+        let password = auto.admin_password;
+        if (!password || password.includes("****")) {
+          password = process.env.REACT_APP_ADMIN_PASSWORD;
+        }
+
+        const workflowId = auto.workflow_id || "ae17a001-612f-4870-824e-c24e17c33fc2";
+
+        const loginResponse = await axios.post(`${domain}/users/login`, {
+          email: email,
+          password: password
         });
 
         if (loginResponse.data?.success) {
@@ -111,7 +139,7 @@ const AddReferral = () => {
 
           // Trigger the workflow
           await axios.post(
-            `${process.env.REACT_APP_CAREGENCE_API_PATH}/utility/start-workflow-trigger?workflow_id=ae17a001-612f-4870-824e-c24e17c33fc2`,
+            `${domain}${webhook}?workflow_id=${workflowId}`,
             {
               referral_id: referralId,
               patient_name: patientName,
@@ -128,8 +156,6 @@ const AddReferral = () => {
         }
       } catch (workflowErr) {
         console.error("Error triggering workflow:", workflowErr);
-        // We don't necessarily want to block the user if the workflow trigger fails 
-        // since the referral was already created in the main DB.
       }
 
       toast.success("Referral created successfully");

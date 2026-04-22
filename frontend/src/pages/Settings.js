@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Database, Cloud, CheckCircle2, XCircle, Loader2, Save, FolderCog } from "lucide-react";
+import { Database, Cloud, CheckCircle2, XCircle, Loader2, Save, FolderCog, Zap } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -88,6 +88,13 @@ const Settings = () => {
     "pdf,doc,docx,png,jpg,jpeg,gif,webp,txt,csv,xls,xlsx"
   );
 
+  // Automation fields
+  const [autoDomain, setAutoDomain] = useState("");
+  const [autoWebhook, setAutoWebhook] = useState("");
+  const [autoUsername, setAutoUsername] = useState("");
+  const [autoPassword, setAutoPassword] = useState("");
+  const [autoWorkflowId, setAutoWorkflowId] = useState("");
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -118,6 +125,13 @@ const Settings = () => {
       setFolderFormat(data.storage?.folder_format || "referrals/{referral_id}");
       setMaxFileSize(String(data.storage?.max_file_size_mb || 50));
       setAllowedTypes(data.storage?.allowed_file_types || "pdf,doc,docx,png,jpg,jpeg");
+
+      // Automation
+      setAutoDomain(data.automation?.domain_name || "");
+      setAutoWebhook(data.automation?.webhook_url || "");
+      setAutoUsername(data.automation?.admin_username || "");
+      setAutoPassword(data.automation?.admin_password || "");
+      setAutoWorkflowId(data.automation?.workflow_id || "");
     } catch (error) {
       console.error("Error fetching settings:", error);
       toast.error("Failed to load settings");
@@ -151,6 +165,13 @@ const Settings = () => {
           max_file_size_mb: parseInt(maxFileSize, 10) || 50,
           allowed_file_types: allowedTypes,
         },
+        automation: {
+          domain_name: autoDomain,
+          webhook_url: autoWebhook,
+          admin_username: autoUsername,
+          admin_password: autoPassword,
+          workflow_id: autoWorkflowId,
+        },
       });
       toast.success("Settings saved successfully");
       setSnowflakeResult(null);
@@ -182,6 +203,13 @@ const Settings = () => {
           max_file_size_mb: parseInt(maxFileSize, 10) || 50,
           allowed_file_types: allowedTypes,
         },
+        automation: {
+          domain_name: autoDomain,
+          webhook_url: autoWebhook,
+          admin_username: autoUsername,
+          admin_password: autoPassword,
+          workflow_id: autoWorkflowId,
+        },
       });
       const res = await axios.post(`${API}/settings/test-snowflake`);
       setSnowflakeResult(res.data);
@@ -210,6 +238,13 @@ const Settings = () => {
           folder_format: folderFormat,
           max_file_size_mb: parseInt(maxFileSize, 10) || 50,
           allowed_file_types: allowedTypes,
+        },
+        automation: {
+          domain_name: autoDomain,
+          webhook_url: autoWebhook,
+          admin_username: autoUsername,
+          admin_password: autoPassword,
+          workflow_id: autoWorkflowId,
         },
       });
       const res = await axios.post(`${API}/settings/test-s3`);
@@ -427,7 +462,54 @@ const Settings = () => {
         </div>
       </SectionCard>
 
-      {/* ── Save ─────────────────────── */}
+      {/* ── Automation ─────────────────────── */}
+      <SectionCard icon={Zap} title="Automation & Webhooks">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FieldRow label="Domain Name" hint="e.g. https://dev-api.caregence.ai">
+            <Input
+              data-testid="auto-domain"
+              value={autoDomain}
+              onChange={(e) => setAutoDomain(e.target.value)}
+              placeholder="https://dev-api.caregence.ai"
+            />
+          </FieldRow>
+          <FieldRow label="Webhook URL" hint="e.g. /utility/start-workflow-trigger">
+            <Input
+              data-testid="auto-webhook"
+              value={autoWebhook}
+              onChange={(e) => setAutoWebhook(e.target.value)}
+              placeholder="/utility/start-workflow-trigger"
+            />
+          </FieldRow>
+          <FieldRow label="Admin Username">
+            <Input
+              data-testid="auto-username"
+              value={autoUsername}
+              onChange={(e) => setAutoUsername(e.target.value)}
+              placeholder="administrator@caregence.ai"
+            />
+          </FieldRow>
+          <FieldRow label="Admin Password">
+            <Input
+              data-testid="auto-password"
+              type="password"
+              value={autoPassword}
+              onChange={(e) => setAutoPassword(e.target.value)}
+              placeholder="Enter admin password"
+            />
+          </FieldRow>
+          <div className="md:col-span-2">
+            <FieldRow label="Workflow ID">
+              <Input
+                data-testid="auto-workflow-id"
+                value={autoWorkflowId}
+                onChange={(e) => setAutoWorkflowId(e.target.value)}
+                placeholder="ae17a001-612f-4870-824e-c24e17c33fc2"
+              />
+            </FieldRow>
+          </div>
+        </div>
+      </SectionCard>
       <div className="flex gap-3 pb-8">
         <Button
           data-testid="save-settings-btn"
