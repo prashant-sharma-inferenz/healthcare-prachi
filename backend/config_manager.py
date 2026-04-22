@@ -27,6 +27,13 @@ DEFAULT_CONFIG = {
         "folder_format": "referrals/{referral_id}",
         "max_file_size_mb": 50,
         "allowed_file_types": "pdf,doc,docx,png,jpg,jpeg,gif,webp,txt,csv,xls,xlsx"
+    },
+    "automation": {
+        "domain_name": "https://dev-api.caregence.ai",
+        "webhook_url": "/utility/start-workflow-trigger",
+        "admin_username": "administrator@caregence.ai",
+        "admin_password": "c9*mrwC!78",
+        "workflow_id": "ae17a001-612f-4870-824e-c24e17c33fc2"
     }
 }
 
@@ -70,6 +77,10 @@ def get_storage_config() -> dict:
     return load_config().get("storage", DEFAULT_CONFIG["storage"])
 
 
+def get_automation_config() -> dict:
+    return load_config().get("automation", DEFAULT_CONFIG["automation"])
+
+
 def mask_secret(value: str) -> str:
     """Mask sensitive values for display, showing first 4 and last 2 chars."""
     if not value or len(value) < 8:
@@ -98,6 +109,13 @@ def get_config_for_display() -> dict:
             "base_folder_path": cfg["aws_s3"]["base_folder_path"],
         },
         "storage": cfg.get("storage", DEFAULT_CONFIG["storage"]),
+        "automation": {
+            "domain_name": cfg["automation"]["domain_name"],
+            "webhook_url": cfg["automation"]["webhook_url"],
+            "admin_username": cfg["automation"]["admin_username"],
+            "admin_password": mask_secret(cfg["automation"]["admin_password"]),
+            "workflow_id": cfg["automation"]["workflow_id"],
+        }
     }
     return display
 
