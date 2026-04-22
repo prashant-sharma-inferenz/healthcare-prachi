@@ -2,11 +2,12 @@ from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Any
 import uuid
 from datetime import datetime, timezone
 import boto3
@@ -21,6 +22,7 @@ from config_manager import (
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
 
 # Create the main app
 app = FastAPI()
@@ -102,6 +104,7 @@ class ReferralOut(BaseModel):
     referral_source: str
     status: str
     created_at: str
+    notes: Optional[Any]
     is_eligible: Optional[str] = Field(default=None, description="Eligibility status: true, false, or unknown")
 
 class Metrics(BaseModel):
@@ -143,6 +146,7 @@ class SettingsInput(BaseModel):
     snowflake: dict
     aws_s3: dict
     storage: dict
+    automation: dict
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -182,6 +186,9 @@ async def update_settings(body: SettingsInput):
             new_cfg["aws_s3"]["secret_access_key"] = current["aws_s3"]["secret_access_key"]
         if "****" in new_cfg["aws_s3"].get("access_key_id", "") or not new_cfg["aws_s3"].get("access_key_id"):
             new_cfg["aws_s3"]["access_key_id"] = current["aws_s3"]["access_key_id"]
+        
+        if "****" in new_cfg["automation"].get("admin_password", "") or not new_cfg["automation"].get("admin_password"):
+            new_cfg["automation"]["admin_password"] = current.get("automation", {}).get("admin_password", "")
 
         save_config(new_cfg)
 
@@ -287,15 +294,18 @@ async def get_referrals(status: Optional[str] = None):
     try:
         if status:
             rows = execute_query(
-                "SELECT id, patient_name, referral_source, status, created_at, IS_ELIGIBLE FROM referrals WHERE status = %s ORDER BY created_at DESC",
+                "SELECT id, patient_name, referral_source, status, created_at, notes, IS_ELIGIBLE FROM referrals WHERE status = %s ORDER BY created_at DESC",
                 (status,), fetch=True
             )
         else:
             rows = execute_query(
-                "SELECT id, patient_name, referral_source, status, created_at, IS_ELIGIBLE FROM referrals ORDER BY created_at DESC",
+                "SELECT id, patient_name, referral_source, status, created_at,  notes, IS_ELIGIBLE FROM referrals ORDER BY created_at DESC",
                 fetch=True
             )
-        return [row_to_dict(r) for r in (rows or [])]
+
+        response = [row_to_dict(r) for r in (rows or [])]
+        return response
+
     except Exception as e:
         logger.error(f"Error fetching referrals: {e}")
         raise HTTPException(status_code=500, detail="Error fetching referrals")
