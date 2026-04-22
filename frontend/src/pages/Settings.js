@@ -41,11 +41,10 @@ const TestBadge = ({ result }) => {
   return (
     <div
       data-testid={result.success ? "test-success-badge" : "test-failure-badge"}
-      className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg mt-3 ${
-        result.success
-          ? "bg-green-50 text-green-700 border border-green-200"
-          : "bg-red-50 text-red-700 border border-red-200"
-      }`}
+      className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg mt-3 ${result.success
+        ? "bg-green-50 text-green-700 border border-green-200"
+        : "bg-red-50 text-red-700 border border-red-200"
+        }`}
     >
       {result.success ? (
         <CheckCircle2 className="w-4 h-4" />
@@ -93,7 +92,8 @@ const Settings = () => {
   const [autoWebhook, setAutoWebhook] = useState("");
   const [autoUsername, setAutoUsername] = useState("");
   const [autoPassword, setAutoPassword] = useState("");
-  const [autoWorkflowId, setAutoWorkflowId] = useState("");
+  const [autoEligibilityWorkflowId, setAutoEligibilityWorkflowId] = useState("");
+  const [autoAdmissionWorkflowId, setAutoAdmissionWorkflowId] = useState("");
 
   useEffect(() => {
     fetchSettings();
@@ -131,7 +131,8 @@ const Settings = () => {
       setAutoWebhook(data.automation?.webhook_url || "");
       setAutoUsername(data.automation?.admin_username || "");
       setAutoPassword(data.automation?.admin_password || "");
-      setAutoWorkflowId(data.automation?.workflow_id || "");
+      setAutoEligibilityWorkflowId(data.automation?.eligibility_check_workflow_id || "");
+      setAutoAdmissionWorkflowId(data.automation?.admission_workflow_id || "");
     } catch (error) {
       console.error("Error fetching settings:", error);
       toast.error("Failed to load settings");
@@ -170,7 +171,8 @@ const Settings = () => {
           webhook_url: autoWebhook,
           admin_username: autoUsername,
           admin_password: autoPassword,
-          workflow_id: autoWorkflowId,
+          eligibility_check_workflow_id: autoEligibilityWorkflowId,
+          admission_workflow_id: autoAdmissionWorkflowId,
         },
       });
       toast.success("Settings saved successfully");
@@ -208,7 +210,8 @@ const Settings = () => {
           webhook_url: autoWebhook,
           admin_username: autoUsername,
           admin_password: autoPassword,
-          workflow_id: autoWorkflowId,
+          eligibility_check_workflow_id: autoEligibilityWorkflowId,
+          admission_workflow_id: autoAdmissionWorkflowId,
         },
       });
       const res = await axios.post(`${API}/settings/test-snowflake`);
@@ -244,7 +247,8 @@ const Settings = () => {
           webhook_url: autoWebhook,
           admin_username: autoUsername,
           admin_password: autoPassword,
-          workflow_id: autoWorkflowId,
+          eligibility_check_workflow_id: autoEligibilityWorkflowId,
+          admission_workflow_id: autoAdmissionWorkflowId,
         },
       });
       const res = await axios.post(`${API}/settings/test-s3`);
@@ -498,13 +502,23 @@ const Settings = () => {
               placeholder="Enter admin password"
             />
           </FieldRow>
-          <div className="md:col-span-2">
-            <FieldRow label="Workflow ID">
+          <div className="md:col-span-1">
+            <FieldRow label="Eligibility Workflow ID">
               <Input
-                data-testid="auto-workflow-id"
-                value={autoWorkflowId}
-                onChange={(e) => setAutoWorkflowId(e.target.value)}
-                placeholder="ae17a001-612f-4870-824e-c24e17c33fc2"
+                data-testid="auto-eligibility-id"
+                value={autoEligibilityWorkflowId}
+                onChange={(e) => setAutoEligibilityWorkflowId(e.target.value)}
+                placeholder="67d6815c-3f1f-4cbc-bfe2-4ffc174650bb"
+              />
+            </FieldRow>
+          </div>
+          <div className="md:col-span-1">
+            <FieldRow label="Admission Workflow ID">
+              <Input
+                data-testid="auto-admission-id"
+                value={autoAdmissionWorkflowId}
+                onChange={(e) => setAutoAdmissionWorkflowId(e.target.value)}
+                placeholder="64883175-3443-4b73-982a-ef222fca75ca"
               />
             </FieldRow>
           </div>

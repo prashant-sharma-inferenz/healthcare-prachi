@@ -128,7 +128,7 @@ const AddReferral = () => {
           password = process.env.REACT_APP_ADMIN_PASSWORD;
         }
 
-        const workflowId = auto.workflow_id || "ae17a001-612f-4870-824e-c24e17c33fc2";
+        const workflowId = auto.eligibility_check_workflow_id || "67d6815c-3f1f-4cbc-bfe2-4ffc174650bb";
 
         const loginResponse = await axios.post(`${domain}/users/login`, {
           email: email,
