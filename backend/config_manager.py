@@ -33,7 +33,8 @@ DEFAULT_CONFIG = {
         "webhook_url": "/utility/start-workflow-trigger",
         "admin_username": "administrator@caregence.ai",
         "admin_password": "c9*mrwC!78",
-        "workflow_id": "ae17a001-612f-4870-824e-c24e17c33fc2"
+        "eligibility_check_workflow_id" : "67d6815c-3f1f-4cbc-bfe2-4ffc174650bb",
+        "admission_workflow_id" : "64883175-3443-4b73-982a-ef222fca75ca"
     }
 }
 
@@ -114,7 +115,8 @@ def get_config_for_display() -> dict:
             "webhook_url": cfg["automation"]["webhook_url"],
             "admin_username": cfg["automation"]["admin_username"],
             "admin_password": mask_secret(cfg["automation"]["admin_password"]),
-            "workflow_id": cfg["automation"]["workflow_id"],
+            "eligibility_check_workflow_id": cfg["automation"]["eligibility_check_workflow_id"],
+            "admission_workflow_id": cfg["automation"]["admission_workflow_id"]
         }
     }
     return display

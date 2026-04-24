@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Users, Clock, TrendingUp, XCircle, Activity, FileText } from "lucide-react";
+import { Users, Clock, TrendingUp, XCircle, Activity, FileText, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
 import ActivityDialog from "../components/ActivityDialog";
 import DocumentsDialog from "../components/DocumentsDialog";
 import OCRDataModal from "./OCRDataPendingReferrals";
@@ -45,17 +53,23 @@ const Dashboard = () => {
   const [ocrDataOpen, setOcrDataOpen] = useState(false);
   const [ocrReferral, setOcrReferral] = useState(null);
   const [ocrData, setOcrData] = useState(null);
+  const [automationSettings, setAutomationSettings] = useState(null);
+  const [triggeringAdmission, setTriggeringAdmission] = useState(null);
+  const [confirmAdmissionOpen, setConfirmAdmissionOpen] = useState(false);
+  const [referralToAdmit, setReferralToAdmit] = useState(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [metricsRes, referralsRes] = await Promise.all([
+      const [metricsRes, referralsRes, settingsRes] = await Promise.all([
         axios.get(`${API}/metrics`),
         axios.get(`${API}/referrals`),
+        axios.get(`${API}/settings`),
       ]);
 
       setMetrics(metricsRes.data);
       setReferrals(referralsRes.data);
+      setAutomationSettings(settingsRes.data.automation || null);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load dashboard data");
@@ -92,6 +106,70 @@ const Dashboard = () => {
     setOcrReferral(referral);
     setOcrData(referral.notes);
     setOcrDataOpen(true);
+  };
+
+  const handleConfirmAdmission = (e, referral) => {
+    e.stopPropagation();
+    setReferralToAdmit(referral);
+    setConfirmAdmissionOpen(true);
+  };
+
+  const handleTriggerAdmission = async () => {
+    if (!referralToAdmit) return;
+    const referral = referralToAdmit;
+    setConfirmAdmissionOpen(false);
+
+    if (!automationSettings) {
+      toast.error("Automation settings not loaded. Please try again in a moment.");
+      return;
+    }
+
+    if (triggeringAdmission === referral.id) return;
+
+    try {
+      setTriggeringAdmission(referral.id);
+      const auto = automationSettings;
+      const domain = auto.domain_name || process.env.REACT_APP_CAREGENCE_API_PATH;
+      const webhook = auto.webhook_url || "/utility/start-workflow-trigger";
+      const email = auto.admin_username || process.env.REACT_APP_ADMIN_USERNAME;
+
+      let password = auto.admin_password;
+      if (!password || password.includes("****")) {
+        password = process.env.REACT_APP_ADMIN_PASSWORD;
+      }
+
+      const workflowId = auto.admission_workflow_id || "64883175-3443-4b73-982a-ef222fca75ca";
+
+      const loginResponse = await axios.post(`${domain}/users/login`, {
+        email: email,
+        password: password
+      });
+
+      if (loginResponse.data?.success) {
+        const accessToken = loginResponse.data.data.access_token;
+
+        await axios.post(
+          `${domain}${webhook}?workflow_id=${workflowId}`,
+          {
+            referral_id: referral.id,
+            patient_name: referral.patient_name,
+            referral_source: referral.referral_source,
+            s3_path: "" // Placeholder as s3_path isn't directly available on dashboard
+          },
+          {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          }
+        );
+        toast.success(`Admission workflow triggered for ${referral.patient_name}`);
+      } else {
+        toast.error("Failed to authenticate with Caregence API");
+      }
+    } catch (err) {
+      console.error("Error triggering admission workflow:", err);
+      toast.error("Failed to trigger admission workflow. Check settings and credentials.");
+    } finally {
+      setTriggeringAdmission(null);
+    }
   };
 
   return (
@@ -191,24 +269,46 @@ const Dashboard = () => {
                         {referral.status}
                       </span>
                     </td>
-                     <td className="px-6 py-4">
+                    <td className="px-6 py-4">
                       {(() => {
                         const status = referral.is_eligible == null
                           ? "Processing"
                           : referral.is_eligible === "eligible" || referral.is_eligible === "Eligible"
-                          ? "Eligible"
-                          : "Not Eligible";
+                            ? "Eligible"
+                            : "Not Eligible";
 
                         const statusClass =
                           status === "Processing"
                             ? "bg-amber-100 text-amber-700"
                             : status === "Eligible"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-rose-100 text-rose-700";
+                              ? "bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200 active:scale-95"
+                              : "bg-rose-100 text-rose-700";
 
                         return (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${statusClass}`}>
-                            {status}
+                          <span
+                            onClick={(e) => {
+                              if (status === "Eligible" && triggeringAdmission !== referral.id) {
+                                handleConfirmAdmission(e, referral);
+                              }
+                            }}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize shadow-sm transition-all ${statusClass} ${triggeringAdmission === referral.id ? "animate-pulse opacity-70" : ""
+                              }`}
+                          >
+                            {triggeringAdmission === referral.id ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin mr-1.5" />
+                                Triggering...
+                              </>
+                            ) : (
+                              status === "Eligible" ? (
+                                <>
+                                  <Play className="w-3 h-3 mr-1 fill-current" />
+                                  {status}
+                                </>
+                              ) : (
+                                status
+                              )
+                            )}
                           </span>
                         );
                       })()}
@@ -272,6 +372,58 @@ const Dashboard = () => {
         onClose={() => setOcrDataOpen(false)}
         data={ocrData}
       />
+
+      {/* Confirmation Dialog for Admission */}
+      <Dialog open={confirmAdmissionOpen} onOpenChange={setConfirmAdmissionOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-primary flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              Confirm Admission Workflow
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to trigger the <span className="font-bold text-foreground">Admission Workflow</span> for this patient?
+            </p>
+            <div className="bg-muted/50 p-4 rounded-lg border border-border space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Patient Name:</span>
+                <span className="font-bold text-foreground">{referralToAdmit?.patient_name}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Referral Source:</span>
+                <span className="font-bold text-foreground capitalize">{referralToAdmit?.referral_source}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Referral ID:</span>
+                <span className="font-mono text-[10px] text-muted-foreground truncate max-w-[150px]">
+                  {referralToAdmit?.id}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Workflow:</span>
+                <span className="text-primary font-bold">Admission Processing</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-3 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmAdmissionOpen(false)}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTriggerAdmission}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-6"
+            >
+              Yes, Trigger Workflow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
