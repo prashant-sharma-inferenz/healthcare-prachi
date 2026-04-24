@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 import snowflake.connector
+from urllib.parse import urlparse
 
 from database import get_connection, close_connection, reset_connection, execute_query, init_tables
 from config_manager import (
@@ -77,6 +78,14 @@ def s3_download(path: str) -> tuple:
     """Download file from S3. Returns (bytes, content_type)."""
     cfg = get_s3_config()
     client = get_s3_client()
+    
+    if path.startswith("http"):
+        try:
+            parsed = urlparse(path)
+            path = parsed.path.lstrip('/')
+        except Exception as e:
+            logger.error(f"Error parsing S3 URL: {e}")
+            
     obj = client.get_object(Bucket=cfg["bucket_name"], Key=path)
     return obj["Body"].read(), obj.get("ContentType", "application/octet-stream")
 
