@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Users, Clock, TrendingUp, XCircle, Activity, FileText, Loader2 } from "lucide-react";
+import { Users, Clock, TrendingUp, XCircle, Activity, FileText, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -132,12 +132,12 @@ const Dashboard = () => {
       const domain = auto.domain_name || process.env.REACT_APP_CAREGENCE_API_PATH;
       const webhook = auto.webhook_url || "/utility/start-workflow-trigger";
       const email = auto.admin_username || process.env.REACT_APP_ADMIN_USERNAME;
-      
+
       let password = auto.admin_password;
       if (!password || password.includes("****")) {
         password = process.env.REACT_APP_ADMIN_PASSWORD;
       }
-      
+
       const workflowId = auto.admission_workflow_id || "64883175-3443-4b73-982a-ef222fca75ca";
 
       const loginResponse = await axios.post(`${domain}/users/login`, {
@@ -147,7 +147,7 @@ const Dashboard = () => {
 
       if (loginResponse.data?.success) {
         const accessToken = loginResponse.data.data.access_token;
-        
+
         await axios.post(
           `${domain}${webhook}?workflow_id=${workflowId}`,
           {
@@ -269,31 +269,30 @@ const Dashboard = () => {
                         {referral.status}
                       </span>
                     </td>
-                     <td className="px-6 py-4">
+                    <td className="px-6 py-4">
                       {(() => {
                         const status = referral.is_eligible == null
                           ? "Processing"
                           : referral.is_eligible === "eligible" || referral.is_eligible === "Eligible"
-                          ? "Eligible"
-                          : "Not Eligible";
+                            ? "Eligible"
+                            : "Not Eligible";
 
                         const statusClass =
                           status === "Processing"
                             ? "bg-amber-100 text-amber-700"
                             : status === "Eligible"
-                            ? "bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200 active:scale-95"
-                            : "bg-rose-100 text-rose-700";
+                              ? "bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200 active:scale-95"
+                              : "bg-rose-100 text-rose-700";
 
                         return (
-                          <span 
+                          <span
                             onClick={(e) => {
                               if (status === "Eligible" && triggeringAdmission !== referral.id) {
                                 handleConfirmAdmission(e, referral);
                               }
                             }}
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize shadow-sm transition-all ${statusClass} ${
-                              triggeringAdmission === referral.id ? "animate-pulse opacity-70" : ""
-                            }`}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize shadow-sm transition-all ${statusClass} ${triggeringAdmission === referral.id ? "animate-pulse opacity-70" : ""
+                              }`}
                           >
                             {triggeringAdmission === referral.id ? (
                               <>
@@ -301,7 +300,14 @@ const Dashboard = () => {
                                 Triggering...
                               </>
                             ) : (
-                              status
+                              status === "Eligible" ? (
+                                <>
+                                  <Play className="w-3 h-3 mr-1 fill-current" />
+                                  {status}
+                                </>
+                              ) : (
+                                status
+                              )
                             )}
                           </span>
                         );
