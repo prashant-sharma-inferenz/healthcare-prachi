@@ -33,6 +33,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        init_tables()
+        logger.info("Snowflake tables ready")
+    except Exception as e:
+        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
+    
+    yield
+    
+    # Shutdown
+    close_connection()
+
+# Create the main app
+app = FastAPI(lifespan=lifespan)
+api_router = APIRouter(prefix="/api")
+
+
 # ─── AWS S3 Functions ────────────────────────────────────────────────────────
 
 def get_s3_client():
@@ -498,15 +517,7 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-async def startup():
-    try:
-        init_tables()
-        logger.info("Snowflake tables ready")
-    except Exception as e:
-        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
 
-
-@app.on_event("shutdown")
-async def shutdown():
-    close_connection()
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
