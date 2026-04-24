@@ -25,31 +25,16 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 
+# Create the main app
+app = FastAPI()
+api_router = APIRouter(prefix="/api")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    try:
-        init_tables()
-        logger.info("Snowflake tables ready")
-    except Exception as e:
-        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
-    
-    yield
-    
-    # Shutdown
-    close_connection()
-
-# Create the main app
-app = FastAPI(lifespan=lifespan)
-api_router = APIRouter(prefix="/api")
 
 
 # ─── AWS S3 Functions ────────────────────────────────────────────────────────
@@ -517,7 +502,15 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup():
+    try:
+        init_tables()
+        logger.info("Snowflake tables ready")
+    except Exception as e:
+        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.on_event("shutdown")
+async def shutdown():
+    close_connection()
