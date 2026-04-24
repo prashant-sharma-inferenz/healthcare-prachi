@@ -71,7 +71,6 @@ const Dashboard = () => {
       setReferrals(referralsRes.data);
       setAutomationSettings(settingsRes.data.automation || null);
     } catch (error) {
-      console.error("Error fetching data:", error);
       toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
@@ -104,6 +103,7 @@ const Dashboard = () => {
   const handleOcrDataClick = (e, referral) => {
     e.stopPropagation();
     setOcrReferral(referral);
+    console.log('referral.notesreferral.notes', referral.notes);
     setOcrData(referral.notes);
     setOcrDataOpen(true);
   };
@@ -317,7 +317,7 @@ const Dashboard = () => {
                       <div className="flex items-center gap-3 flex-wrap">
                         <button
                           data-testid={`view-activities-btn-${referral.id}`}
-                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleReferralClick(referral);
@@ -328,7 +328,7 @@ const Dashboard = () => {
                         </button>
                         <button
                           data-testid={`view-documents-btn-${referral.id}`}
-                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                           onClick={(e) => handleDocsClick(e, referral)}
                         >
                           <FileText className="w-4 h-4" />
@@ -336,7 +336,7 @@ const Dashboard = () => {
                         </button>
                         <button
                           data-testid={`view-ocr-data-btn-${referral.id}`}
-                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                           onClick={(e) => handleOcrDataClick(e, referral)}
                         >
                           <FileText className="w-4 h-4" />
