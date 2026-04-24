@@ -482,10 +482,12 @@ async def download_file(file_path: str):
 
 app.include_router(api_router)
 
+allow_origins = ["https://hospicesolution.caregence.ai", "http://localhost:3000", "http://hospicesolution.caregence.ai"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=allow_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
