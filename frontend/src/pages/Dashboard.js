@@ -12,7 +12,7 @@ import {
 import { Button } from "../components/ui/button";
 import ActivityDialog from "../components/ActivityDialog";
 import DocumentsDialog from "../components/DocumentsDialog";
-import OCRDataModal from "./OCRDataPendingReferrals";
+
 import sampleOCRData from "../data/sampleOCRData.json";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -50,9 +50,6 @@ const Dashboard = () => {
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [documentsDialogOpen, setDocumentsDialogOpen] = useState(false);
   const [docsReferral, setDocsReferral] = useState(null);
-  const [ocrDataOpen, setOcrDataOpen] = useState(false);
-  const [ocrReferral, setOcrReferral] = useState(null);
-  const [ocrData, setOcrData] = useState(null);
   const [automationSettings, setAutomationSettings] = useState(null);
   const [triggeringAdmission, setTriggeringAdmission] = useState(null);
   const [confirmAdmissionOpen, setConfirmAdmissionOpen] = useState(false);
@@ -71,7 +68,6 @@ const Dashboard = () => {
       setReferrals(referralsRes.data);
       setAutomationSettings(settingsRes.data.automation || null);
     } catch (error) {
-      console.error("Error fetching data:", error);
       toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
@@ -101,12 +97,6 @@ const Dashboard = () => {
     setDocumentsDialogOpen(true);
   };
 
-  const handleOcrDataClick = (e, referral) => {
-    e.stopPropagation();
-    setOcrReferral(referral);
-    setOcrData(referral.notes);
-    setOcrDataOpen(true);
-  };
 
   const handleConfirmAdmission = (e, referral) => {
     e.stopPropagation();
@@ -317,7 +307,7 @@ const Dashboard = () => {
                       <div className="flex items-center gap-3 flex-wrap">
                         <button
                           data-testid={`view-activities-btn-${referral.id}`}
-                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleReferralClick(referral);
@@ -328,19 +318,11 @@ const Dashboard = () => {
                         </button>
                         <button
                           data-testid={`view-documents-btn-${referral.id}`}
-                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                           onClick={(e) => handleDocsClick(e, referral)}
                         >
                           <FileText className="w-4 h-4" />
                           Documents
-                        </button>
-                        <button
-                          data-testid={`view-ocr-data-btn-${referral.id}`}
-                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
-                          onClick={(e) => handleOcrDataClick(e, referral)}
-                        >
-                          <FileText className="w-4 h-4" />
-                          Scanned Documents
                         </button>
                       </div>
                     </td>
@@ -366,12 +348,6 @@ const Dashboard = () => {
         referral={docsReferral}
       />
 
-      {/* OCR Data Modal */}
-      <OCRDataModal
-        isOpen={ocrDataOpen}
-        onClose={() => setOcrDataOpen(false)}
-        data={ocrData}
-      />
 
       {/* Confirmation Dialog for Admission */}
       <Dialog open={confirmAdmissionOpen} onOpenChange={setConfirmAdmissionOpen}>
