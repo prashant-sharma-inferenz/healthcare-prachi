@@ -8,7 +8,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
-const BACKEND_URL = "https://hospicesolution.caregence.ai";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 console.log("Using backend API URL updated:", BACKEND_URL);
