@@ -121,6 +121,9 @@ class Metrics(BaseModel):
     total_pending_admission: int
     conversion_percentage: float
     total_non_admit: int
+    total_eligible: int
+    total_non_eligible: int
+    total_null_eligible: int
 
 class ActivityCreate(BaseModel):
     activity_type: str
@@ -276,14 +279,26 @@ async def root():
 async def get_metrics():
     try:
         total = execute_query("SELECT COUNT(*) AS cnt FROM referrals", fetch=True)
+        
         pending = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE status = 'pending'", fetch=True)
+        
         admitted = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE status = 'admitted'", fetch=True)
+        
         non_admit = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE status = 'non_admit'", fetch=True)
+
+        total_eligible = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE is_eligible = 'Eligible'", fetch=True)
+
+        total_non_eligible = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE is_eligible = 'Ineligible'", fetch=True)
+        
+        total_null_eligible = execute_query("SELECT COUNT(*) AS cnt FROM referrals WHERE is_eligible IS NULL", fetch=True)
 
         total_count = total[0]["CNT"] if total else 0
         admitted_count = admitted[0]["CNT"] if admitted else 0
         pending_count = pending[0]["CNT"] if pending else 0
         non_admit_count = non_admit[0]["CNT"] if non_admit else 0
+        total_eligible = total_eligible[0]["CNT"] if total_eligible else 0
+        total_non_eligible = total_non_eligible[0]["CNT"] if total_non_eligible else 0
+        total_null_eligible = total_null_eligible[0]["CNT"] if total_null_eligible else 0
 
         conversion = round((admitted_count / total_count) * 100, 1) if total_count > 0 else 0.0
 
@@ -292,6 +307,9 @@ async def get_metrics():
             total_pending_admission=pending_count,
             conversion_percentage=conversion,
             total_non_admit=non_admit_count,
+            total_eligible=total_eligible,
+            total_non_eligible=total_non_eligible,
+            total_null_eligible=total_null_eligible
         )
     except Exception as e:
         logger.error(f"Error fetching metrics: {e}")
@@ -472,14 +490,22 @@ async def delete_file(file_id: str):
 @api_router.get("/files/{file_path:path}")
 async def download_file(file_path: str):
     try:
+        # Try finding by exact match first, then by filename suffix
         record = execute_query(
-            "SELECT content_type FROM files WHERE storage_path = %s AND is_deleted = FALSE",
-            (file_path,), fetch=True
+            "SELECT storage_path, content_type FROM files WHERE (storage_path = %s OR storage_path LIKE '%%' || %s) AND is_deleted = FALSE",
+            (file_path, file_path), fetch=True
         )
+        
         if not record:
             raise HTTPException(status_code=404, detail="File not found")
-        data, content_type = s3_download(file_path)
-        return Response(content=data, media_type=record[0].get("CONTENT_TYPE", content_type))
+            
+        # If multiple matches (unlikely with UUIDs), take the first one
+        full_storage_path = record[0]["STORAGE_PATH"]
+        data, content_type = s3_download(full_storage_path)
+        
+        # Use content type from DB if available, else from S3
+        final_content_type = record[0].get("CONTENT_TYPE") or content_type
+        return Response(content=data, media_type=final_content_type)
     except HTTPException:
         raise
     except Exception as e:

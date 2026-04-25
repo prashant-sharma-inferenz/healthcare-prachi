@@ -131,7 +131,13 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
 
   const handleDownload = async (doc) => {
     try {
-      const response = await axios.get(`${API}/files/${doc.storage_path}`, {
+      console.log('doc.storage_path', doc.storage_path);
+      
+      // Extract only the filename from the storage_path
+      const parts = doc.storage_path.split('/');
+      const fileName = parts[parts.length - 1];
+
+      const response = await axios.get(`${API}/files/${fileName}`, {
         responseType: "blob",
       });
       const blobUrl = URL.createObjectURL(response.data);

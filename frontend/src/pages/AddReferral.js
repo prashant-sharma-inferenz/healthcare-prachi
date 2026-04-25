@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-console.log("Using backend API URL:", BACKEND_URL);
+console.log("Using backend API URL updated:", BACKEND_URL);
 
 const AddReferral = () => {
   const navigate = useNavigate();

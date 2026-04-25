@@ -43,6 +43,9 @@ const Dashboard = () => {
     total_pending_admission: 0,
     conversion_percentage: 0,
     total_non_admit: 0,
+    total_eligible: 0,
+    total_null_eligible: 0,
+    total_non_eligible: 0,
   });
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -181,20 +184,20 @@ const Dashboard = () => {
           testId="metric-total-referrals"
         />
         <MetricCard
-          title="Pending Admission"
-          value={metrics.total_pending_admission}
+          title="In Progress"
+          value={metrics.total_null_eligible}
           icon={Clock}
           testId="metric-pending-admission"
         />
         <MetricCard
-          title="Conversion Rate"
-          value={`${metrics.conversion_percentage}%`}
+          title="Total Eligible"
+          value={`${metrics.total_eligible}`}
           icon={TrendingUp}
           testId="metric-conversion-rate"
         />
         <MetricCard
-          title="Non-Admit"
-          value={metrics.total_non_admit}
+          title="Non-Eligible"
+          value={metrics.total_non_eligible}
           icon={XCircle}
           testId="metric-non-admit"
         />
