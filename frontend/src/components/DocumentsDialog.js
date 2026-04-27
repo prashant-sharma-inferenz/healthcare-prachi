@@ -292,6 +292,43 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
       }
 
       if (Array.isArray(val)) {
+        if (val.length === 0) return <span className="text-muted-foreground/30 italic font-normal">None reported</span>;
+
+        // Check if it's an array of objects (like medications or labs)
+        const isArrayOfObjects = typeof val[0] === "object" && val[0] !== null && !Array.isArray(val[0]);
+
+        if (isArrayOfObjects) {
+          const headers = Object.keys(val[0]);
+          return (
+            <div className="mt-4 overflow-hidden rounded-xl border border-border/50 shadow-sm bg-background/50">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px] border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border/50">
+                      {headers.map(h => (
+                        <th key={h} className="px-4 py-2.5 font-black text-primary/70 uppercase tracking-widest whitespace-nowrap">
+                          {h.replace(/_/g, " ")}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {val.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-primary/5 transition-colors">
+                        {headers.map(h => (
+                          <td key={h} className="px-4 py-2.5 font-medium text-foreground/90">
+                            {renderValue(item[h], h)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div className="mt-2 space-y-2">
             {val.map((item, idx) => (
@@ -318,22 +355,29 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
       }
 
       if (typeof val === "object") {
-        const isHeaderSection = key.toLowerCase().startsWith("section_") || key.toLowerCase().includes("insurance");
+        const isHeaderSection = key.toLowerCase().startsWith("section_") || 
+                               key.toLowerCase().includes("insurance") || 
+                               key.toLowerCase().includes("physicians") ||
+                               key.toLowerCase().includes("extra");
+        
+        const entries = Object.entries(val);
+        const hasNestedObjects = entries.some(([_, v]) => typeof v === 'object' && v !== null);
+
         return (
           <div className={`mt-3 space-y-4 ${isHeaderSection ? "p-4 bg-muted/30 rounded-xl border border-border/50 shadow-sm" : "pl-4 border-l-2 border-primary/10 ml-1"}`}>
             {isHeaderSection && (
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary uppercase">
-                  {key.includes("_") ? key.split('_')[1].charAt(0) : key.charAt(0)}
+                  {key.includes("_") ? key.split('_').slice(-1)[0].charAt(0) : key.charAt(0)}
                 </div>
                 <span className="text-xs font-black text-primary uppercase tracking-widest">
                   {key.replace(/_/g, " ")}
                 </span>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-y-4">
-              {Object.entries(val).map(([k, v]) => (
-                <div key={k} className="space-y-1">
+            <div className={`grid gap-x-8 gap-y-4 ${hasNestedObjects ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+              {entries.map(([k, v]) => (
+                <div key={k} className={`space-y-1 ${typeof v === 'string' && v.length > 150 ? 'sm:col-span-2' : ''}`}>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block opacity-70">
                     {k.replace(/_/g, " ")}
                   </span>
