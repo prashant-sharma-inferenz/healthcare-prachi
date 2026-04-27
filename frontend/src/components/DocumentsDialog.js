@@ -45,6 +45,9 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [editNotes, setEditNotes] = useState({});
   const [editTags, setEditTags] = useState({});
+  const [fullReferral, setFullReferral] = useState(null);
+  const [fetchingReferral, setFetchingReferral] = useState(false);
+
 
   const fetchDocuments = useCallback(async () => {
     if (!referral) return;
@@ -60,11 +63,26 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
     }
   }, [referral]);
 
+  const fetchFullReferral = useCallback(async () => {
+    if (!referral) return;
+    try {
+      setFetchingReferral(true);
+      const response = await axios.get(`${API}/referrals/${referral.id}`);
+      setFullReferral(response.data);
+    } catch (error) {
+      console.error("Error fetching detailed referral:", error);
+    } finally {
+      setFetchingReferral(false);
+    }
+  }, [referral]);
+
   useEffect(() => {
     if (open && referral) {
       fetchDocuments();
+      fetchFullReferral();
     }
-  }, [open, referral, fetchDocuments]);
+  }, [open, referral, fetchDocuments, fetchFullReferral]);
+
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -132,7 +150,7 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
   const handleDownload = async (doc) => {
     try {
       console.log('doc.storage_path', doc.storage_path);
-      
+
       // Extract only the filename from the storage_path
       const parts = doc.storage_path.split('/');
       const fileName = parts[parts.length - 1];
@@ -196,7 +214,16 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
     });
 
   const renderOCRContent = () => {
-    const data = referral.notes;
+    if (fetchingReferral) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm text-muted-foreground">Loading clinical report...</p>
+        </div>
+      );
+    }
+
+    const data = fullReferral?.notes;
     if (!data) {
       return (
         <div className="flex flex-col items-center justify-center py-12 text-center bg-muted/10 rounded-2xl border border-dashed border-border">
@@ -208,6 +235,7 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
         </div>
       );
     }
+
 
     let parsedData = data;
     if (typeof data === "string") {

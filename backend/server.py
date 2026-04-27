@@ -1,4 +1,6 @@
 from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Query
+import uvicorn
+
 from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -14,6 +16,8 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 import snowflake.connector
 from urllib.parse import urlparse
+import json
+
 
 from database import get_connection, close_connection, reset_connection, execute_query, init_tables
 from config_manager import (
@@ -28,6 +32,7 @@ load_dotenv(ROOT_DIR / '.env')
 # Create the main app
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
 
 # Configure logging
 logging.basicConfig(
@@ -88,6 +93,43 @@ def s3_download(path: str) -> tuple:
             
     obj = client.get_object(Bucket=cfg["bucket_name"], Key=path)
     return obj["Body"].read(), obj.get("ContentType", "application/octet-stream")
+
+
+def process_referral_notes(notes: Any) -> Any:
+    """If notes is an S3 URL (s3://bucket/key), read JSON content and generate a presigned URL."""
+    if not isinstance(notes, str) or not notes.startswith("s3://"):
+        return notes
+
+    try:
+        # Parse s3://bucket/key
+        s3_path = notes[5:]
+        if "/" not in s3_path:
+            return notes
+        
+        bucket, key = s3_path.split("/", 1)
+        client = get_s3_client()
+
+        # 1. Read JSON content
+        obj = client.get_object(Bucket=bucket, Key=key)
+        content = json.loads(obj["Body"].read().decode("utf-8"))
+
+        # 2. Generate presigned URL (valid for 1 hour)
+        presigned_url = client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=3600
+        )
+
+        # 3. Return structured data for the UI
+        return {
+            "s3_url": notes,
+            "presigned_url": presigned_url,
+            "data": content
+        }
+    except Exception as e:
+        logger.error(f"Error processing S3 notes {notes}: {e}")
+        return notes
+
 
 
 def build_storage_path(referral_id: str, filename: str) -> str:
@@ -330,12 +372,35 @@ async def get_referrals(status: Optional[str] = None):
                 fetch=True
             )
 
-        response = [row_to_dict(r) for r in (rows or [])]
+        rows = (rows or [])
+        response = [row_to_dict(r) for r in rows]
         return response
 
     except Exception as e:
+
         logger.error(f"Error fetching referrals: {e}")
         raise HTTPException(status_code=500, detail="Error fetching referrals")
+
+
+@api_router.get("/referrals/{referral_id}", response_model=ReferralOut)
+async def get_referral(referral_id: str):
+    try:
+        rows = execute_query(
+            "SELECT id, patient_name, referral_source, status, created_at, notes, IS_ELIGIBLE FROM referrals WHERE id = %s",
+            (referral_id,), fetch=True
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="Referral not found")
+        
+        d = row_to_dict(rows[0])
+        d["notes"] = process_referral_notes(d.get("notes"))
+        return d
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching referral {referral_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching referral")
+
 
 
 @api_router.post("/referrals", response_model=ReferralOut)

@@ -15,6 +15,8 @@ import DocumentsDialog from "../components/DocumentsDialog";
 
 import sampleOCRData from "../data/sampleOCRData.json";
 
+
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
@@ -58,6 +60,8 @@ const Dashboard = () => {
   const [confirmAdmissionOpen, setConfirmAdmissionOpen] = useState(false);
   const [referralToAdmit, setReferralToAdmit] = useState(null);
 
+
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -99,6 +103,8 @@ const Dashboard = () => {
     setDocsReferral(referral);
     setDocumentsDialogOpen(true);
   };
+
+
 
 
   const handleConfirmAdmission = (e, referral) => {
@@ -206,7 +212,7 @@ const Dashboard = () => {
       {/* Pending Referrals Table */}
       <div className="bg-card rounded-lg border border-border shadow-sm">
         <div className="p-6 border-b border-border">
-          <h2 className="text-xl font-medium text-foreground">Pending Referrals</h2>
+          <h2 className="text-xl font-medium text-foreground">Referrals</h2>
           <p className="text-sm text-muted-foreground mt-1">Click on a referral to view and add activities</p>
         </div>
         <div className="overflow-x-auto">
@@ -214,7 +220,7 @@ const Dashboard = () => {
             <div className="p-8 text-center text-muted-foreground">Loading...</div>
           ) : referrals.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground" data-testid="no-referrals-message">
-              No pending referrals at the moment
+              No referrals at the moment
             </div>
           ) : (
             <table className="w-full" data-testid="referrals-table">
@@ -328,6 +334,8 @@ const Dashboard = () => {
                           Documents
                         </button>
                       </div>
+
+
                     </td>
                   </tr>
                 ))}
