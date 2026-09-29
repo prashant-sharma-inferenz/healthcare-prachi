@@ -355,11 +355,11 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
       }
 
       if (typeof val === "object") {
-        const isHeaderSection = key.toLowerCase().startsWith("section_") || 
-                               key.toLowerCase().includes("insurance") || 
-                               key.toLowerCase().includes("physicians") ||
-                               key.toLowerCase().includes("extra");
-        
+        const isHeaderSection = key.toLowerCase().startsWith("section_") ||
+          key.toLowerCase().includes("insurance") ||
+          key.toLowerCase().includes("physicians") ||
+          key.toLowerCase().includes("extra");
+
         const entries = Object.entries(val);
         const hasNestedObjects = entries.some(([_, v]) => typeof v === 'object' && v !== null);
 
@@ -375,7 +375,7 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
                 </span>
               </div>
             )}
-            <div className={`grid gap-x-8 gap-y-4 ${hasNestedObjects ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+            <div className={`grid gap-x-8 gap-y-4 ${hasNestedObjects ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2"}`}>
               {entries.map(([k, v]) => (
                 <div key={k} className={`space-y-1 ${typeof v === 'string' && v.length > 150 ? 'sm:col-span-2' : ''}`}>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block opacity-70">
