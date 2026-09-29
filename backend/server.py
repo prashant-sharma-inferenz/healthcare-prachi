@@ -29,17 +29,28 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 
-# Create the main app
-app = FastAPI()
-api_router = APIRouter(prefix="/api")
-
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        init_tables()
+        logger.info("Snowflake tables ready")
+    except Exception as e:
+        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
+    yield
+    close_connection()
+
+
+# Create the main app
+app = FastAPI(lifespan=lifespan)
+api_router = APIRouter(prefix="/api")
 
 
 # ─── AWS S3 Functions ────────────────────────────────────────────────────────
@@ -234,8 +245,8 @@ async def update_settings(body: SettingsInput):
 
         # For masked/blank passwords keep the old value
         new_cfg = body.dict()
-        if "****" in new_cfg["snowflake"].get("password", "") or not new_cfg["snowflake"].get("password"):
-            new_cfg["snowflake"]["password"] = current["snowflake"]["password"]
+        if "****" in new_cfg["snowflake"].get("private_key", "") or not new_cfg["snowflake"].get("private_key"):
+            new_cfg["snowflake"]["private_key"] = current["snowflake"].get("private_key", "")
         if "****" in new_cfg["aws_s3"].get("secret_access_key", "") or not new_cfg["aws_s3"].get("secret_access_key"):
             new_cfg["aws_s3"]["secret_access_key"] = current["aws_s3"]["secret_access_key"]
         if "****" in new_cfg["aws_s3"].get("access_key_id", "") or not new_cfg["aws_s3"].get("access_key_id"):
@@ -255,31 +266,8 @@ async def update_settings(body: SettingsInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@api_router.post("/settings/test-snowflake")
-async def test_snowflake():
-    """Test Snowflake connection with current config.json values."""
-    cfg = get_snowflake_config()
-    if not cfg.get("account") or not cfg.get("user"):
-        return {"success": False, "message": "Snowflake account and user are required."}
-    try:
-        conn = snowflake.connector.connect(
-            account=cfg["account"],
-            user=cfg["user"],
-            password=cfg["password"],
-            database=cfg.get("database"),
-            schema=cfg.get("schema"),
-            warehouse=cfg.get("warehouse"),
-            role=cfg.get("role") or None,
-            login_timeout=15,
-        )
-        cursor = conn.cursor()
-        cursor.execute("SELECT CURRENT_VERSION()")
-        version = cursor.fetchone()[0]
-        cursor.close()
-        conn.close()
-        return {"success": True, "message": f"Connected to Snowflake (v{version})"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
+from test_snowflake_api import router as test_snowflake_router
+api_router.include_router(test_snowflake_router, prefix="/settings")
 
 
 @api_router.post("/settings/test-s3")
@@ -582,7 +570,7 @@ async def download_file(file_path: str):
 
 app.include_router(api_router)
 
-allow_origins = ["https://hospicesolution.caregence.ai", "http://localhost:3000", "http://hospicesolution.caregence.ai"]
+allow_origins = ["https://hospicesolution.caregence.ai", "http://localhost:3000", "http://hospicesolution.caregence.ai", "http://localhost:3001"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -593,15 +581,3 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-async def startup():
-    try:
-        init_tables()
-        logger.info("Snowflake tables ready")
-    except Exception as e:
-        logger.error(f"Snowflake init skipped: {e} — configure via Settings page.")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    close_connection()
