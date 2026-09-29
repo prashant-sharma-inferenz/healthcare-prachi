@@ -19,10 +19,26 @@ def get_connection():
         raise ConnectionError("Snowflake not configured. Please update settings.")
 
     try:
+        private_key = cfg.get("private_key", "")
+        pkb = None
+        if private_key:
+            from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.backends import default_backend
+            p_key = serialization.load_pem_private_key(
+                private_key.encode('utf-8'),
+                password=None,
+                backend=default_backend()
+            )
+            pkb = p_key.private_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+
         _connection = snowflake.connector.connect(
             account=cfg["account"],
             user=cfg["user"],
-            password=cfg["password"],
+            private_key=pkb,
             database=cfg["database"],
             schema=cfg["schema"],
             warehouse=cfg["warehouse"],

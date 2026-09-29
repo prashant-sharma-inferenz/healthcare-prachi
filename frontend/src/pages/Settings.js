@@ -67,7 +67,7 @@ const Settings = () => {
   // Snowflake fields
   const [sfAccount, setSfAccount] = useState("");
   const [sfUser, setSfUser] = useState("");
-  const [sfPassword, setSfPassword] = useState("");
+  const [sfPrivateKey, setSfPrivateKey] = useState("");
   const [sfDatabase, setSfDatabase] = useState("");
   const [sfSchema, setSfSchema] = useState("");
   const [sfWarehouse, setSfWarehouse] = useState("");
@@ -108,7 +108,7 @@ const Settings = () => {
       // Snowflake
       setSfAccount(data.snowflake?.account || "");
       setSfUser(data.snowflake?.user || "");
-      setSfPassword(data.snowflake?.password || "");
+      setSfPrivateKey(data.snowflake?.private_key || "");
       setSfDatabase(data.snowflake?.database || "");
       setSfSchema(data.snowflake?.schema || "");
       setSfWarehouse(data.snowflake?.warehouse || "");
@@ -148,7 +148,7 @@ const Settings = () => {
         snowflake: {
           account: sfAccount,
           user: sfUser,
-          password: sfPassword,
+          private_key: sfPrivateKey,
           database: sfDatabase,
           schema: sfSchema,
           warehouse: sfWarehouse,
@@ -193,7 +193,7 @@ const Settings = () => {
       // Save first so the backend tests with latest values
       await axios.put(`${API}/settings`, {
         snowflake: {
-          account: sfAccount, user: sfUser, password: sfPassword,
+          account: sfAccount, user: sfUser, private_key: sfPrivateKey,
           database: sfDatabase, schema: sfSchema, warehouse: sfWarehouse, role: sfRole,
         },
         aws_s3: {
@@ -230,7 +230,7 @@ const Settings = () => {
       // Save first
       await axios.put(`${API}/settings`, {
         snowflake: {
-          account: sfAccount, user: sfUser, password: sfPassword,
+          account: sfAccount, user: sfUser, private_key: sfPrivateKey,
           database: sfDatabase, schema: sfSchema, warehouse: sfWarehouse, role: sfRole,
         },
         aws_s3: {
@@ -298,15 +298,17 @@ const Settings = () => {
               placeholder="SNOWFLAKE_USER"
             />
           </FieldRow>
-          <FieldRow label="Password">
-            <Input
-              data-testid="sf-password"
-              type="password"
-              value={sfPassword}
-              onChange={(e) => setSfPassword(e.target.value)}
-              placeholder="Enter password"
-            />
-          </FieldRow>
+          <div className="md:col-span-2">
+            <FieldRow label="Private Key" hint="Paste the RSA private key in PEM format">
+              <textarea
+                className="flex min-h-[120px] w-full font-mono rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                data-testid="sf-private-key"
+                value={sfPrivateKey}
+                onChange={(e) => setSfPrivateKey(e.target.value)}
+                placeholder="-----BEGIN PRIVATE KEY-----&#10;MIIE...&#10;-----END PRIVATE KEY-----"
+              />
+            </FieldRow>
+          </div>
           <FieldRow label="Database">
             <Input
               data-testid="sf-database"

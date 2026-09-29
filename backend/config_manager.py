@@ -10,7 +10,7 @@ DEFAULT_CONFIG = {
     "snowflake": {
         "account": "",
         "user": "",
-        "password": "",
+        "private_key": "",
         "database": "",
         "schema": "",
         "warehouse": "",
@@ -96,7 +96,7 @@ def get_config_for_display() -> dict:
         "snowflake": {
             "account": cfg["snowflake"]["account"],
             "user": cfg["snowflake"]["user"],
-            "password": mask_secret(cfg["snowflake"]["password"]),
+            "private_key": mask_secret(cfg["snowflake"]["private_key"]),
             "database": cfg["snowflake"]["database"],
             "schema": cfg["snowflake"]["schema"],
             "warehouse": cfg["snowflake"]["warehouse"],
