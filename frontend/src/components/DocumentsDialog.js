@@ -261,6 +261,24 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
       }
     }
 
+    if (Array.isArray(parsedData)) {
+      let combined = {};
+      parsedData.forEach(item => {
+        try {
+          let p = item;
+          if (typeof p === "string") {
+            p = JSON.parse(p);
+          }
+          if (typeof p === "object" && p !== null && !Array.isArray(p)) {
+            combined = { ...combined, ...p };
+          }
+        } catch(err) {
+          console.warn("Failed to parse array item:", err);
+        }
+      });
+      parsedData = combined;
+    }
+
     if (parsedData && parsedData.data && typeof parsedData.data === "object" && !parsedData.face_to_face) {
       parsedData = parsedData.data;
     }
