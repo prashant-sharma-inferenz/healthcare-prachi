@@ -272,7 +272,7 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
           if (typeof p === "object" && p !== null && !Array.isArray(p)) {
             combined = { ...combined, ...p };
           }
-        } catch(err) {
+        } catch (err) {
           console.warn("Failed to parse array item:", err);
         }
       });
@@ -441,11 +441,11 @@ const DocumentsDialog = ({ open, onOpenChange, referral }) => {
                         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[9px] font-black uppercase tracking-widest px-1.5 py-0">
                           {sectionType.replace(/_/g, " ")}
                         </Badge>
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{docId}</span>
+                        {/* <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{docId}</span> */}
                       </div>
-                      <h4 className="text-md font-bold text-foreground mt-0.5 tracking-tight">
-                        {doc.document_name || "Clinical Document"}
-                      </h4>
+                      {/* <h4 className="text-md font-bold text-foreground mt-0.5 tracking-tight">
+                        {doc.document_name} asdasd
+                      </h4> */}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
